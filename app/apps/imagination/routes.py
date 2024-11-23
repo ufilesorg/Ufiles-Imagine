@@ -8,8 +8,13 @@ from usso.fastapi import jwt_access_security
 from apps.ai.schemas import ImaginationEngines, ImaginationEnginesSchema
 
 from .models import Imagination
-from .schemas import ImagineCreateSchema, ImagineSchema, ImagineWebhookData
-from .services import process_imagine_webhook
+from .schemas import (
+    ImagineCreateSchema,
+    ImagineSchema,
+    ImagineWebhookData,
+    PromptBuilderData,
+)
+from .services import process_imagine_webhook, build_prompt
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
@@ -88,3 +93,9 @@ async def engines():
         ImaginationEnginesSchema.from_model(engine) for engine in ImaginationEngines
     ]
     return engines
+
+
+@router.post("/prompt-builder")
+async def prompt_builder(data: PromptBuilderData):
+    prompt = await build_prompt(data.idea, data.engine)
+    return {"prompt": prompt, "engine": data.engine}
