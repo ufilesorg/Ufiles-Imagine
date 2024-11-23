@@ -177,6 +177,22 @@ async def request_imagine_metis(
     await bot.send_message_async(session, f"/imagine {imagination.prompt}")
 
 
+async def build_prompt(
+    idea: str,
+    engine: ImaginationEngines,
+):
+    prompt = "\n".join(
+        [
+            f"Translate my idea: [{idea}] into English. Then, using the AI image generator [{engine.value}], create or improve a optimized prompt for the generator.",
+            f"Only provide the final text for the prompt, without quotation marks, symbols, or additional explanations.",
+        ]
+    )
+
+    messages = [{"content": prompt}]
+    response = await ai.answer_messages(messages)
+    return response["answer"]
+
+
 async def create_prompt(imagination: Imagination, enhance: bool = False):
     async def get_prompt_row(item: dict):
         return f'{item.get("topic", "")} {await ai.translate(item.get("value", ""))}'
