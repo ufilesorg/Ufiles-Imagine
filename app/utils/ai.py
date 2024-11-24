@@ -5,6 +5,7 @@ import os
 import langdetect
 from metisai.async_metis import AsyncMetisBot
 
+from apps.imagination.schemas import ImaginationEngines
 from utils.texttools import backtick_formatter
 
 metis_client = AsyncMetisBot(
@@ -66,3 +67,19 @@ async def translate(query: str, to: str = "en"):
     await metis_client.delete_session(session)
     resp_text = backtick_formatter(response.content)
     return resp_text
+
+
+async def build_prompt(
+    idea: str,
+    engine: ImaginationEngines,
+):
+    prompt = "\n".join(
+        [
+            f"Translate my idea: [{idea}] into English. Then, using the AI image generator [{engine.value}], create or improve a optimized prompt  tailored to that generator. Include specific parameters or formatting required by the model.",
+            f"Only provide the final text for the prompt, without quotation marks, symbols, or additional explanations.",
+        ]
+    )
+
+    messages = [{"content": prompt}]
+    response = await answer_messages(messages)
+    return response["answer"]

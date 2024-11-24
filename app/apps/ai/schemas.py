@@ -76,7 +76,6 @@ class ImaginationEngines(str, Enum):
 
     def get_class(self, imagination: Any):
         from .dalle import Dalle
-
         from .midjourney import Midjourney
         from .replicate_engine import Replicate
 

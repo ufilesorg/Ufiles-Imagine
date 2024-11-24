@@ -177,28 +177,15 @@ async def request_imagine_metis(
     await bot.send_message_async(session, f"/imagine {imagination.prompt}")
 
 
-async def build_prompt(
-    idea: str,
-    engine: ImaginationEngines,
-):
-    prompt = "\n".join(
-        [
-            f"Translate my idea: [{idea}] into English. Then, using the AI image generator [{engine.value}], create or improve a optimized prompt for the generator.",
-            f"Only provide the final text for the prompt, without quotation marks, symbols, or additional explanations.",
-        ]
-    )
-
-    messages = [{"content": prompt}]
-    response = await ai.answer_messages(messages)
-    return response["answer"]
-
-
 async def create_prompt(imagination: Imagination, enhance: bool = False):
     async def get_prompt_row(item: dict):
         return f'{item.get("topic", "")} {await ai.translate(item.get("value", ""))}'
 
     # Translate prompt using ai
-    prompt = await ai.translate(imagination.prompt or imagination.delineation or "")
+    if enhance:
+        prompt = await ai.build_prompt(prompt, imagination.engine)
+    else:
+        prompt = await ai.translate(imagination.prompt or imagination.delineation or "")
 
     # Convert prompt ai properties to array
     context = await asyncio.gather(
@@ -208,10 +195,6 @@ async def create_prompt(imagination: Imagination, enhance: bool = False):
     # Create final prompt using user prompt and prompt properties
     prompt += ", " + ", ".join(context)
     prompt = prompt.strip(",").strip()
-
-    if enhance:
-        # TODO: Enhance the prompt
-        pass
 
     return prompt
 

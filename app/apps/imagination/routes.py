@@ -6,6 +6,7 @@ from fastapi_mongo_base.routes import AbstractBaseRouter
 from usso.fastapi import jwt_access_security
 
 from apps.ai.schemas import ImaginationEngines, ImaginationEnginesSchema
+from utils.ai import build_prompt
 
 from .models import Imagination
 from .schemas import (
@@ -14,7 +15,7 @@ from .schemas import (
     ImagineWebhookData,
     PromptBuilderData,
 )
-from .services import process_imagine_webhook, build_prompt
+from .services import process_imagine_webhook
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):

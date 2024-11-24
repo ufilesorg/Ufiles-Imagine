@@ -31,6 +31,7 @@ class ImagineResponse(BaseModel):
     width: int
     height: int
 
+
 class PromptBuilderData(BaseModel):
     idea: str
     engine: ImaginationEngines
