@@ -38,8 +38,8 @@ class Replicate(Engine):
         prediction = replicate.predictions.create(
             model=self.application_name,
             input={"prompt": self.item.prompt, "aspect_ratio": self.item.aspect_ratio},
-            webhook=self.item.webhook_url,
-            webhook_events_filter=["completed"],
+            # webhook=self.item.item_webhook_url,
+            # webhook_events_filter=["completed"],
         )
         return await self._result_to_details(prediction)
 
@@ -124,6 +124,16 @@ class Replicate(Engine):
             prompt=prediction.input["prompt"],
             status=self._status(prediction.status),
             model=self.application_name,
-            result={"uri": prediction.output[0]} if prediction.output else None,
+            result=(
+                {
+                    "uri": (
+                        prediction.output
+                        if isinstance(prediction.output, str)
+                        else prediction.output[0]
+                    )
+                }
+                if prediction.output
+                else None
+            ),
             percentage=100,
         )
