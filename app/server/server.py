@@ -155,6 +155,9 @@ async def health(request: fastapi.Request):
 
 @app.get(f"{config.Settings.base_path}/logs", include_in_schema=False)
 async def logs():
-    with open("logs/info.log") as f:
-        logs = f.readlines()
-    return logs[-100:]
+    from collections import deque
+
+    with open("logs/info.log", "rb") as f:
+        last_100_lines = deque(f, maxlen=100)
+
+    return [line.decode("utf-8") for line in last_100_lines]

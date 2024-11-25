@@ -29,8 +29,8 @@ class ReplicateBackgroundRemoval(Replicate):
         prediction = replicate.predictions.create(
             version=self.application_name.version,
             input={"image": self.item.image},
-            webhook=self.item.webhook_url,
-            webhook_events_filter=["completed"],
+            # webhook=self.item.item_webhook_url,
+            # webhook_events_filter=["start", "completed"],
         )
         return await self._result_to_details(prediction)
 

@@ -72,6 +72,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         background_tasks: BackgroundTasks,
     ):
         item: Imagination = await super().create_item(request, data.model_dump())
+        item.task_status = "init"
         background_tasks.add_task(item.start_processing)
         return item
 

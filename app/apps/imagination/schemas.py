@@ -39,7 +39,7 @@ class ImagineSchema(TaskMixin, OwnedEntitySchema):
     context: list[dict[str, Any]] | None = None
     engine: ImaginationEngines = ImaginationEngines.midjourney
     mode: Literal["imagine"] = "imagine"
-    status: ImaginationStatus = ImaginationStatus.draft
+    status: ImaginationStatus = ImaginationStatus.init
     results: list[ImagineResponse] | None = None
     manager: str | None = None
 

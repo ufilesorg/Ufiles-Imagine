@@ -1,12 +1,11 @@
-# Stock Photo Proxy Application
+# Multi Image Generative AI, API
 
 ## Overview
-This is a FastAPI-based proxy application that enables users to search and download stock photos from multiple stock websites. The application acts as an intermediary, making it easier for users to access a variety of stock photos without needing to visit each site individually.
+This is a FastAPI-based proxy application that enables users to imagine a user requested prompts.
 
 ## Features
-- **Search Stock Photos**: Users can search for stock photos using keywords.
 - **Download Photos**: Allows users to download high-quality stock photos directly through the application.
-- **Multiple Stock Websites**: Integrates with various popular stock photo websites to provide a wide range of photos.
+- **Multiple GenAI engines**: Integrates with various popular stock photo websites to provide a wide range of photos.
 - **FastAPI Framework**: Built using FastAPI for high performance and easy scalability.
 ## Installation
 
@@ -17,7 +16,7 @@ This is a FastAPI-based proxy application that enables users to search and downl
 ### Steps
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/stock-photo-proxy.git
+    git clone https://github.com/ufilesorg/ufiles-imagine.get
     ```
 2. Navigate to the project directory:
     ```sh

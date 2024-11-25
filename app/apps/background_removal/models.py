@@ -19,10 +19,6 @@ class BackgroundRemoval(BackgroundRemovalSchema, OwnedEntity):
             f"https://{Settings.root_url}/v1/apps/imagine/background-removal/{self.uid}"
         )
 
-    @property
-    def webhook_url(self):
-        return f"{self.item_url}/webhook"
-
     async def start_processing(self):
         from .services import background_removal_request
 

@@ -82,23 +82,96 @@ class ImaginationEngines(str, Enum):
         from .replicate_engine import Replicate
 
         return {
-            ImaginationEngines.dalle: lambda: Dalle(imagination),
-            ImaginationEngines.midjourney: lambda: Midjourney(imagination),
-            ImaginationEngines.ideogram: lambda: Replicate(imagination, self.value),
-            ImaginationEngines.flux_schnell: lambda: Replicate(imagination, self.value),
-            ImaginationEngines.stability: lambda: Replicate(imagination, self.value),
-            ImaginationEngines.flux_1_1: lambda: Replicate(imagination, self.value),
+            ImaginationEngines.dalle: lambda: Dalle(item=imagination, engine=self),
+            ImaginationEngines.midjourney: lambda: Midjourney(
+                item=imagination, engine=self
+            ),
+            ImaginationEngines.ideogram: lambda: Replicate(
+                item=imagination, engine=self
+            ),
+            ImaginationEngines.flux_schnell: lambda: Replicate(
+                item=imagination, engine=self
+            ),
+            ImaginationEngines.stability: lambda: Replicate(
+                item=imagination, engine=self
+            ),
+            ImaginationEngines.flux_1_1: lambda: Replicate(
+                item=imagination, engine=self
+            ),
         }[self]()
 
     @property
     def thumbnail_url(self):
         return {
-            ImaginationEngines.dalle: "https://media.pixiee.io/v1/f/41af8b03-b4df-4b2f-ba52-ea638d10b5f3/dalle-icon.png",
-            ImaginationEngines.midjourney: "https://media.pixiee.io/v1/f/4a0980aa-8d97-4493-bdb1-fb3d67d891e3/midjourney-icon.png",
-            ImaginationEngines.ideogram: "https://media.pixiee.io/v1/f/19d4df43-ea1e-4562-a8e1-8ee301bd0a88/ideogram-icon.png",
-            ImaginationEngines.flux_schnell: "https://media.pixiee.io/v1/f/cf21c500-6e84-4915-a5d1-19b8f325a382/flux-icon.png",
-            ImaginationEngines.stability: "https://media.pixiee.io/v1/f/6d0a2e82-7667-46ec-af33-0e557f16e356/stability-icon.png",
-            ImaginationEngines.flux_1_1: "https://media.pixiee.io/v1/f/cf21c500-6e84-4915-a5d1-19b8f325a382/flux-icon.png",
+            ImaginationEngines.dalle: "https://media.pixiee.io/v1/f/41af8b03-b4df-4b2f-ba52-ea638d10b5f3/dalle-icon.png?width=100",
+            ImaginationEngines.midjourney: "https://media.pixiee.io/v1/f/4a0980aa-8d97-4493-bdb1-fb3d67d891e3/midjourney-icon.png?width=100",
+            ImaginationEngines.ideogram: "https://media.pixiee.io/v1/f/19d4df43-ea1e-4562-a8e1-8ee301bd0a88/ideogram-icon.png?width=100",
+            ImaginationEngines.flux_schnell: "https://media.pixiee.io/v1/f/cf21c500-6e84-4915-a5d1-19b8f325a382/flux-icon.png?width=100",
+            ImaginationEngines.stability: "https://media.pixiee.io/v1/f/6d0a2e82-7667-46ec-af33-0e557f16e356/stability-icon.png?width=100",
+            ImaginationEngines.flux_1_1: "https://media.pixiee.io/v1/f/cf21c500-6e84-4915-a5d1-19b8f325a382/flux-icon.png?width=100",
+        }[self]
+
+    @property
+    def supported_aspect_ratios(self):
+        return {
+            ImaginationEngines.ideogram: {
+                "1:1",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "3:2",
+                "2:3",
+                "16:10",
+                "10:16",
+                "3:1",
+                "1:3",
+            },
+            ImaginationEngines.flux_schnell: {
+                "1:1",
+                "16:9",
+                "21:9",
+                "3:2",
+                "2:3",
+                "4:5",
+                "5:4",
+                "3:4",
+                "4:3",
+                "9:16",
+                "9:21",
+            },
+            ImaginationEngines.flux_1_1: {
+                "1:1",
+                "16:9",
+                "2:3",
+                "3:2",
+                "4:5",
+                "5:4",
+                "9:16",
+                "3:4",
+                "4:3",
+            },
+            ImaginationEngines.stability: {
+                "1:1",
+                "16:9",
+                "21:9",
+                "3:2",
+                "2:3",
+                "4:5",
+                "5:4",
+                "9:16",
+                "9:21",
+            },
+            ImaginationEngines.dalle: {"1:1"},
+            ImaginationEngines.midjourney: {
+                "4:5",
+                "2:3",
+                "4:7",
+                "1:1",
+                "5:4",
+                "3:2",
+                "7:4",
+            },
         }[self]
 
     @property
@@ -110,7 +183,13 @@ class ImaginationEnginesSchema(BaseModel):
     engine: ImaginationEngines = ImaginationEngines.midjourney
     thumbnail_url: str
     price: float
+    supported_aspect_ratios: set
 
     @classmethod
     def from_model(cls, model: ImaginationEngines):
-        return cls(engine=model, thumbnail_url=model.thumbnail_url, price=model.price)
+        return cls(
+            engine=model,
+            thumbnail_url=model.thumbnail_url,
+            price=model.price,
+            supported_aspect_ratios=model.supported_aspect_ratios,
+        )

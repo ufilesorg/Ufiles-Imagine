@@ -2,6 +2,8 @@ from typing import Any, Literal
 
 import replicate.prediction
 
+from apps.ai.schemas import ImaginationEngines
+
 from .engine import Engine, EnginesDetails
 from .schemas import ImaginationStatus
 
@@ -20,14 +22,14 @@ class ReplicateDetails(EnginesDetails):
 
 
 class Replicate(Engine):
-    def __init__(self, item, name) -> None:
-        super().__init__(item)
+    def __init__(self, item, engine, **kwargs) -> None:
+        super().__init__(item, engine, **kwargs)
         self.application_name = {
-            "ideogram": "ideogram-ai/ideogram-v2-turbo",
-            "flux_schnell": "black-forest-labs/flux-schnell",
-            "flux_1.1": "black-forest-labs/flux-1.1-pro",
-            "stability": "stability-ai/stable-diffusion-3",
-        }[name]
+            ImaginationEngines.ideogram: "ideogram-ai/ideogram-v2-turbo",
+            ImaginationEngines.flux_schnell: "black-forest-labs/flux-schnell",
+            ImaginationEngines.flux_1_1: "black-forest-labs/flux-1.1-pro",
+            ImaginationEngines.stability: "stability-ai/stable-diffusion-3",
+        }[engine]
 
     async def result(self, **kwargs) -> ReplicateDetails:
         id = self._get_data("id")
@@ -39,65 +41,14 @@ class Replicate(Engine):
             model=self.application_name,
             input={"prompt": self.item.prompt, "aspect_ratio": self.item.aspect_ratio},
             # webhook=self.item.item_webhook_url,
-            # webhook_events_filter=["completed"],
+            # webhook_events_filter=["start","completed"],
         )
         return await self._result_to_details(prediction)
 
     def validate(self, data):
-        aspect_ratios = {
-            "ideogram-ai/ideogram-v2-turbo": {
-                "1:1",
-                "16:9",
-                "9:16",
-                "4:3",
-                "3:4",
-                "3:2",
-                "2:3",
-                "16:10",
-                "10:16",
-                "3:1",
-                "1:3",
-            },
-            "black-forest-labs/flux-schnell": {
-                "1:1",
-                "16:9",
-                "21:9",
-                "3:2",
-                "2:3",
-                "4:5",
-                "5:4",
-                "3:4",
-                "4:3",
-                "9:16",
-                "9:21",
-            },
-            "black-forest-labs/flux-1.1-pro": {
-                "1:1",
-                "16:9",
-                "2:3",
-                "3:2",
-                "4:5",
-                "5:4",
-                "9:16",
-                "3:4",
-                "4:3",
-            },
-            "stability-ai/stable-diffusion-3": {
-                "1:1",
-                "16:9",
-                "21:9",
-                "3:2",
-                "2:3",
-                "4:5",
-                "5:4",
-                "9:16",
-                "9:21",
-            },
-        }[self.application_name]
-
-        aspect_ratio_valid = data.aspect_ratio in aspect_ratios
+        aspect_ratio_valid = data.aspect_ratio in self.engine.supported_aspect_ratios
         message = (
-            f"aspect_ratio must be one of them {aspect_ratios}"
+            f"aspect_ratio must be one of them {self.engine.supported_aspect_ratios}"
             if not aspect_ratio_valid
             else None
         )

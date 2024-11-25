@@ -25,8 +25,9 @@ class EnginesDetails(BaseModel):
 
 
 class Engine:
-    def __init__(self, item) -> None:
+    def __init__(self, item, engine) -> None:
         self.item = item
+        self.engine = engine
 
     # Get Result from service(client / API)
     async def result(self, **kwargs) -> EnginesDetails:

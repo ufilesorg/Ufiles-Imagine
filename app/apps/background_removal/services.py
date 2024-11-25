@@ -100,7 +100,7 @@ async def background_removal_request(background_removal: BackgroundRemoval):
         raise NotImplementedError(
             "The supported engines are Replicate, Replicate and Dalle."
         )
-    mid_request = await Item._request(callback=background_removal.webhook_url)
+    mid_request = await Item._request(callback=background_removal.item_webhook_url)
 
     # Store Engine response
     background_removal.meta_data = (

@@ -14,8 +14,8 @@ class DalleDetails(EnginesDetails):
 
 
 class Dalle(Engine):
-    def __init__(self, item) -> None:
-        super().__init__(item)
+    def __init__(self, item, **kwargs) -> None:
+        super().__init__(item, **kwargs)
         if item:
             self.client = AsyncMetisBot(
                 api_key=Settings.METIS_API_KEY,
@@ -47,13 +47,9 @@ class Dalle(Engine):
         }.get(status, ImaginationStatus.error)
 
     def validate(self, data):
-        aspect_ratio_valid = data.aspect_ratio in {
-            "16:9",
-            "9:16",
-            "1:1",
-        }
+        aspect_ratio_valid = data.aspect_ratio in self.engine.supported_aspect_ratios
         message = (
-            "aspect_ratio must be one of them 16:9 or 9:16 or 1:1"
+            f"aspect_ratio must be one of them {self.engine.supported_aspect_ratios}"
             if not aspect_ratio_valid
             else None
         )

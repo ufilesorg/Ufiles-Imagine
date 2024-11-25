@@ -31,11 +31,10 @@ class MidjourneyDetails(EnginesDetails, BaseModel):
 
 
 class Midjourney(Engine):
-    def __init__(self, item) -> None:
-        super().__init__(item)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
         self.api_url = "https://mid.aision.io/task"
         self.token = os.getenv("MIDAPI_TOKEN")
-
         self.headers = {
             "Authorization": self.token,
             "Content-Type": "application/json",
@@ -52,6 +51,7 @@ class Midjourney(Engine):
                 return await self._result_to_details(result)
 
     async def _request(self, **kwargs) -> MidjourneyDetails:
+        self.item.prompt += f"--ar {self.item.aspect_ratio}"
         payload = json.dumps(
             {
                 "prompt": self.item.prompt,
@@ -66,7 +66,17 @@ class Midjourney(Engine):
             ) as response:
                 response.raise_for_status()
                 result = await response.json()
+                print(result)
                 return await self._result_to_details(result)
+
+    def validate(self, data):
+        aspect_ratio_valid = data.aspect_ratio in self.engine.supported_aspect_ratios
+        message = (
+            f"aspect_ratio must be one of them {self.engine.supported_aspect_ratios}"
+            if not aspect_ratio_valid
+            else None
+        )
+        return aspect_ratio_valid, message
 
     def _status(
         self,
