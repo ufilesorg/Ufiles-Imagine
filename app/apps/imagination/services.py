@@ -155,6 +155,7 @@ async def process_imagine_webhook(imagination: Imagination, data: ImagineWebhook
     if data.status == "completed":
         result_url = (data.result or {}).get("uri")
         await process_result(imagination, result_url)
+        await imagination.end_processing()
 
     imagination.task_progress = data.percentage
     imagination.task_status = imagination.status.task_status

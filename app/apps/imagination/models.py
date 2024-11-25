@@ -2,10 +2,11 @@ import asyncio
 import logging
 
 from fastapi_mongo_base.models import OwnedEntity
+from fastapi_mongo_base.tasks import TaskStatusEnum
 
 from server.config import Settings
 
-from .schemas import ImagineSchema
+from .schemas import ImagineSchema, MultiEngineSchema, MultiEngineResponse
 
 
 class Imagination(ImagineSchema, OwnedEntity):
@@ -26,6 +27,10 @@ class Imagination(ImagineSchema, OwnedEntity):
         from .services import imagine_request
 
         await imagine_request(self)
+
+    async def end_processing(self):
+        main_task = await MultiEngine.get(self.manager)
+        await main_task.end(self)
 
     async def retry(self, message: str, max_retries: int = 5):
         self.meta_data = self.meta_data or {}
@@ -57,3 +62,27 @@ class Imagination(ImagineSchema, OwnedEntity):
         return await super(OwnedEntity, cls).get_item(
             uid, user_id=user_id, *args, **kwargs
         )
+
+
+class MultiEngine(MultiEngineSchema, OwnedEntity):
+    class Settings:
+        indexes = OwnedEntity.Settings.indexes
+
+    async def start_processing(self):
+        self.task_status = TaskStatusEnum.processing
+        await self.save()
+        task_items = [await task.get_task_item() for task in self.task_references.tasks]
+        await asyncio.gather(*[await task.start_processing() for task in task_items])
+
+    async def end(self, imagination: Imagination):
+        for result in imagination.results:
+            self.results.append(
+                MultiEngineResponse(engine=imagination.engine, **result.model_dump())
+            )
+        if self.order == self.tasks_count - 1:
+            self.task_status = TaskStatusEnum.completed
+            await self.save()
+            return
+
+        self.order += 1
+        await self.save()

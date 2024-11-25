@@ -41,6 +41,38 @@ class ImagineSchema(TaskMixin, OwnedEntitySchema):
     mode: Literal["imagine"] = "imagine"
     status: ImaginationStatus = ImaginationStatus.draft
     results: list[ImagineResponse] | None = None
+    manager: str | None = None
+
+
+class MultiEngineResponse(BaseModel):
+    url: str
+    width: int
+    height: int
+    engine: ImaginationEngines
+
+
+class MultiEngineCreateSchema(BaseModel):
+    engines: list[ImaginationEngines]
+    aspect_ratio: str
+    prompt: str
+
+    @model_validator(mode="after")
+    def validate_data(cls, values: "MultiEngineCreateSchema"):
+        engines = values.engines
+        for engine in engines:
+            validated, message = engine.get_class(None).validate(values)
+            if not validated:
+                raise ValueError(f"{engine}: {message}")
+        return values
+
+
+class MultiEngineSchema(TaskMixin, OwnedEntitySchema):
+    order: int = 0
+    tasks_count: int
+    aspect_ratio: str
+    prompt: str
+    engines: list[ImaginationEngines]
+    results: list[MultiEngineResponse] = []
 
 
 class ImagineWebhookData(BaseModel):
