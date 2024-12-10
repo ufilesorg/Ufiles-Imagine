@@ -319,7 +319,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         )
 
     imagination_bulk.task_status = TaskStatusEnum.processing
-    await imagination_bulk.save_report(f"{imagination_bulk} ordered.")
+    await imagination_bulk.save_report(f"Bulk task was ordered.")
     task_items = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
@@ -349,4 +349,4 @@ async def imagine_bulk_process(imagination_bulk: ImaginationBulk):
     ):
         imagination_bulk.task_status = TaskStatusEnum.completed
         imagination_bulk.completed_at = datetime.now()
-        await imagination_bulk.save_report(f"{imagination_bulk} ended.")
+        await imagination_bulk.save_report(f"Bulk task is completed.")
