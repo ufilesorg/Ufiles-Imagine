@@ -41,6 +41,7 @@ class Imagination(ImagineSchema, OwnedEntity):
 
         if retry_count < max_retries:
             self.meta_data["retry_count"] = retry_count + 1
+            logging.warning(f"Retry {retry_count} {self.uid}")
             await self.save_report(
                 f"Retry {self.uid} {self.meta_data.get('retry_count')}", emit=False
             )
@@ -54,6 +55,7 @@ class Imagination(ImagineSchema, OwnedEntity):
     async def fail(self, message: str):
         self.task_status = TaskStatusEnum.error
         self.status = ImaginationStatus.error
+        logging.error(f"Failed {self.uid} {message}")
         await self.save_report(f"Image failed after retries, {message}", emit=False)
         await self.save_and_emit()
         if self.bulk:
@@ -124,11 +126,28 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
         ).to_list()
 
     async def collect_results(self):
-        completed_tasks = await self.completed_tasks()
-        results = []
-        for item in completed_tasks:
-            for result in item.results or []:
-                results.append(
-                    ImagineBulkResponse(engine=item.engine, **result.model_dump())
+        try:
+            completed_tasks = await self.completed_tasks()
+            results = []
+            for item in completed_tasks:
+                for result in item.results:
+                    results.append(
+                        ImagineBulkResponse(engine=item.engine, **result.model_dump())
+                    )
+            return results
+        except Exception as e:
+            import traceback
+
+            traceback_str = "".join(traceback.format_tb(e.__traceback__))
+            logging.error(
+                "\n".join(
+                    [
+                        f"{item.uid}: {item.engine} {item.results}"
+                        for item in completed_tasks
+                    ]
                 )
-        return results
+            )
+            logging.error(
+                f"An error occurred in collect_results:\n{traceback_str}\n{e}"
+            )
+            return None

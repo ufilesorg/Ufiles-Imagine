@@ -51,7 +51,7 @@ class Midjourney(Engine):
         self.item.prompt = self.item.prompt.strip(".").strip(",").strip()
         if self.item.aspect_ratio != "1:1":
             self.item.prompt += f" --ar {self.item.aspect_ratio}"
-        self.item.prompt += " --c 40"
+        # self.item.prompt += " --c 40"
         payload = json.dumps(
             {
                 "prompt": self.item.prompt,

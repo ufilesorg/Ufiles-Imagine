@@ -11,6 +11,8 @@ logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 
 async def worker():
+    await update_imagination()
+    
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         update_imagination, "interval", seconds=Settings.worker_update_time

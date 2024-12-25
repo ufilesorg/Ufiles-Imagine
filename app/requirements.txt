@@ -1,6 +1,7 @@
 uvicorn
 fastapi
 pydantic
+httpx
 
 singleton_package
 json-advanced
@@ -10,8 +11,6 @@ ipython
 
 aiofiles
 aiocache
-httpx
-usso[fastapi]
 
 beanie
 fastapi-mongo-base
@@ -19,9 +18,10 @@ ufaas-fastapi-business
 
 apscheduler
 pytz
+pillow
 
 ufiles
-pillow
+usso[fastapi]
 
 langdetect
 openai
