@@ -80,7 +80,7 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
     async def start_processing(self):
         from .services import imagine_bulk_request
 
-        await imagine_bulk_request(self)
+        return await imagine_bulk_request(self)
 
     @try_except_wrapper
     async def fail(self):
@@ -111,6 +111,7 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
             {
                 "bulk": {"$eq": str(self.id)},
                 "status": {"$eq": ImaginationStatus.completed},
+                "results": {"$ne": None},
             }
         ).to_list()
 
@@ -126,7 +127,7 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
         completed_tasks = await self.completed_tasks()
         results = []
         for item in completed_tasks:
-            for result in item.results:
+            for result in item.results or []:
                 results.append(
                     ImagineBulkResponse(engine=item.engine, **result.model_dump())
                 )

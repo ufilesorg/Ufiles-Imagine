@@ -108,7 +108,7 @@ class ImagineCreateBulkSchema(BaseModel):
     delineation: str | None = None
     context: list[dict[str, Any]] | None = None
     enhance_prompt: bool = False
-
+    sync: bool = False
     aspect_ratios: list[str] = []
     engines: list[ImaginationEngines] = ImaginationEngines.bulk_engines
     webhook_url: str | None = None

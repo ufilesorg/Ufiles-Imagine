@@ -163,7 +163,10 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
-        background_tasks.add_task(item.start_processing)
+        if data.sync:
+            item = await item.start_processing()
+        else:
+            background_tasks.add_task(item.start_processing)
         return item
 
     async def retrieve_bulk_item(

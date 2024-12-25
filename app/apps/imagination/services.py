@@ -287,6 +287,10 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
     await asyncio.gather(*[task.start_processing() for task in task_items])
+    imagination_bulk = await ImaginationBulk.get_item(
+        imagination_bulk.uid, imagination_bulk.user_id
+    )
+    return imagination_bulk
 
 
 @basic.try_except_wrapper
