@@ -2,13 +2,12 @@ import logging
 import uuid
 
 import fastapi
-from apps.ai.schemas import ImaginationEngines, ImaginationEnginesSchema
+from apps.ai.engine import ImaginationEngines, ImaginationEnginesSchema
 from fastapi import BackgroundTasks
 from fastapi_mongo_base.core.exceptions import BaseHTTPException
 from fastapi_mongo_base.routes import AbstractBaseRouter
 from fastapi_mongo_base.tasks import TaskStatusEnum
 from usso.fastapi import jwt_access_security
-from utils.usages import Usages
 
 from .models import Imagination, ImaginationBulk
 from .schemas import (
@@ -66,19 +65,6 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
             methods=["POST"],
             status_code=200,
         )
-        # self.router.add_api_route(
-        #     "/bulk",
-        #     self.create_bulk_item,
-        #     methods=["POST"],
-        #     response_model=ImagineBulkSchema,
-        #     status_code=201,
-        # )
-        # self.router.add_api_route(
-        #     "/bulk/{uid:uuid}",
-        #     self.retrieve_bulk_item,
-        #     methods=["GET"],
-        #     response_model=ImagineBulkSchema,
-        # )
 
     async def create_item(
         self,
@@ -87,13 +73,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         background_tasks: BackgroundTasks,
         sync: bool = False,
     ):
-        usage = Usages()
-        await usage.create(
-            await self.get_user_id(request),
-            4 if data.engine == ImaginationEngines.midjourney else 1,
-        )
         item: Imagination = await super().create_item(request, data.model_dump())
-        await usage.update(item)
         item.task_status = "init"
         if sync:
             await item.start_processing()
@@ -102,10 +82,12 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         return item
 
     async def webhook(
-        self, request: fastapi.Request, uid: uuid.UUID, data: ImagineWebhookData
+        self, request: fastapi.Request, uid: uuid.UUID, data: ImagineWebhookData | dict
     ):
-        # logging.info(f"Webhook received: {await request.json()}")
         item: Imagination = await self.get_item(uid, user_id=None)
+        logging.info(f"Webhook received: {item.engine.value} {data}")
+        if item.engine.value != "midjourney":
+            return {}
         if item.status == "cancelled":
             return {"message": "Imagination has been cancelled."}
         await process_imagine_webhook(item, data)
@@ -124,7 +106,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
 
     def config_schemas(self, schema, **kwargs):
         super().config_schemas(schema, **kwargs)
-        self.create_request_schema = ImagineCreateBulkSchema
+        # self.create_request_schema = ImagineCreateBulkSchema
 
     def config_routes(self, **kwargs):
         self.router.add_api_route(
@@ -153,6 +135,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         request: fastapi.Request,
         data: ImagineCreateBulkSchema,
         background_tasks: BackgroundTasks,
+        sync: bool = False,
     ):
         user_id = await self.get_user_id(request)
         item: ImaginationBulk = await ImaginationBulk.create_item(
@@ -163,7 +146,10 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
-        background_tasks.add_task(item.start_processing)
+        if sync:
+            item = await item.start_processing()
+        else:
+            background_tasks.add_task(item.start_processing)
         return item
 
     async def retrieve_bulk_item(
@@ -197,8 +183,10 @@ bulk_router = ImaginationBulkRouter().router
 
 
 @router.get("/engines/", response_model=list[ImaginationEnginesSchema])
-async def engines():
+async def engines(aspect_ratio: str = None):
     engines = [
         ImaginationEnginesSchema.from_model(engine) for engine in ImaginationEngines
     ]
+    if aspect_ratio:
+        engines = [e for e in engines if aspect_ratio in e.supported_aspect_ratios]
     return engines

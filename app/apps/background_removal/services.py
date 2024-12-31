@@ -25,8 +25,8 @@ async def upload_image(
         usso_base_url=Settings.USSO_BASE_URL,
         api_key=Settings.UFILES_API_KEY,
     )
-    image_bytes = imagetools.convert_to_jpg_bytes(image)
-    image_bytes.name = f"{image_name}.jpg"
+    image_bytes = imagetools.convert_format_bytes(image, convert_format="webp")
+    image_bytes.name = f"{image_name}.webp"
     return await ufiles_client.upload_bytes(
         image_bytes,
         filename=f"{file_upload_dir}/{image_bytes.name}",
@@ -64,8 +64,6 @@ async def process_result(background_removal: BackgroundRemoval, generated_url: s
 
         traceback_str = "".join(traceback.format_tb(e.__traceback__))
         logging.error(f"Error processing image: {e}\n{traceback_str}")
-
-    return
 
 
 async def process_background_removal_webhook(

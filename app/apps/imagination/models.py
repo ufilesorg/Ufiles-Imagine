@@ -82,7 +82,7 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
     async def start_processing(self):
         from .services import imagine_bulk_request
 
-        await imagine_bulk_request(self)
+        return await imagine_bulk_request(self)
 
     @try_except_wrapper
     async def fail(self):

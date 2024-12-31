@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     base_dir: Path = Path(__file__).resolve().parent.parent
     base_path: str = "/v1/apps/imagine"
-    update_time: int = 10
+    update_time: int = 6
 
     METIS_DALLE_BOT_ID: str = os.getenv("METIS_DALLE_BOT_ID")
     METIS_BOT_ID: str = os.getenv("METIS_BOT_ID")
@@ -24,4 +24,7 @@ class Settings(BaseSettings):
 
     UFILES_API_KEY: str = os.getenv("UFILES_API_KEY")
     UFILES_BASE_URL: str = os.getenv("UFILES_URL")
+    UFAAS_BASE_URL: str = os.getenv("UFAAS_BASE_URL")
     USSO_BASE_URL: str = os.getenv("USSO_URL")
+
+    base_image_price: int = 10_000

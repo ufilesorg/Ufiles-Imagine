@@ -141,11 +141,27 @@ def crop_image(image: Image.Image, sections=(2, 2), **kwargs) -> list[Image.Imag
     return parts
 
 
-def convert_to_jpg_bytes(image: Image.Image, quality=None) -> BytesIO:
+def convert_format_bytes(
+    image: Image.Image, convert_format: str = "jpg", quality: float | None = None
+) -> BytesIO:
+    convert_formats = {
+        "jpeg": "JPEG",
+        "jpg": "JPEG",
+        "webp": "WEBP",
+        "png": "PNG",
+        "gif": "GIF",
+        "bmp": "BMP",
+        "tiff": "TIFF",
+        "ico": "ICO",
+    }
+    
     image_bytes = BytesIO()
-    image.convert("RGB").save(
+    if convert_format == "jpg":
+        image = image.convert("RGB")
+        
+    image.save(
         image_bytes,
-        format="JPEG",
+        format=convert_formats.get(convert_format.lower(), "JPEG"),
         **{"quality": quality} if quality else {},
     )
     image_bytes.seek(0)

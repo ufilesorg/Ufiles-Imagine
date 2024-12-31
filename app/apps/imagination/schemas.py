@@ -1,21 +1,21 @@
+import itertools
 from datetime import datetime
 from typing import Any, Generator
 
-from apps.ai.schemas import ImaginationEngines, ImaginationStatus
+from apps.ai.engine import ImaginationEngines
+from apps.ai.schemas import ImaginationStatus
 from fastapi_mongo_base.schemas import OwnedEntitySchema
 from fastapi_mongo_base.tasks import TaskMixin
 from pydantic import BaseModel, field_validator, model_validator
 
 
 class ImagineCreateSchema(BaseModel):
-    # prompt: str | None = None
     engine: ImaginationEngines = ImaginationEngines.midjourney
     aspect_ratio: str | None = "1:1"
-    # sync: bool | None = False
+
     delineation: str | None = None
     context: list[dict[str, Any]] | None = None
     enhance_prompt: bool = False
-    # number: int = 1
 
     @model_validator(mode="after")
     def validate_data(cls, values: "ImagineCreateSchema"):
@@ -33,20 +33,14 @@ class ImagineResponse(BaseModel):
     height: int
 
 
-class ImagineSchema(TaskMixin, OwnedEntitySchema):
+class ImagineSchema(ImagineCreateSchema, TaskMixin, OwnedEntitySchema):
     prompt: str | None = None
-    delineation: str | None = None
-    context: list[dict[str, Any]] | None = None
     error: Any | None = None
 
-    engine: ImaginationEngines = ImaginationEngines.midjourney
-    aspect_ratio: str | None = "1:1"
-    enhance_prompt: bool = False
-
     bulk: str | None = None
-
     status: ImaginationStatus = ImaginationStatus.init
     results: list[ImagineResponse] | None = None
+    usage_id: str | None = None
 
 
 class ImagineWebhookData(BaseModel):
@@ -81,54 +75,43 @@ class ImagineBulkError(BaseModel):
     message: str
 
 
-class ImagineBulkSchema(TaskMixin, OwnedEntitySchema):
-    prompt: str | None = None
+class ImagineCreateBulkSchema(BaseModel):
     delineation: str | None = None
     context: list[dict[str, Any]] | None = None
     enhance_prompt: bool = False
+
+    aspect_ratios: list[str] = ["1:1"]
+    engines: list[ImaginationEngines] | None = None
+    webhook_url: str | None = None
+
+    @model_validator(mode="after")
+    def validate_engines(cls, item: "ImagineCreateBulkSchema"):
+        if item.engines is None:
+            all_aspect_ratios = [ar for ar in item.aspect_ratios if ar is not None]
+            item.engines = ImaginationEngines.bulk_engines(all_aspect_ratios)
+        return item
+
+    @field_validator("aspect_ratios", mode="before")
+    def validate_aspect_ratios(cls, value):
+        if isinstance(value, str):
+            return [value]
+        return value
+
+    def get_combinations(
+        self,
+    ) -> Generator[tuple[str, ImaginationEngines], None, None]:
+        for ar, e in itertools.product(self.aspect_ratios, self.engines):
+            if ar not in e.supported_aspect_ratios:
+                continue
+            yield ar, e
+
+
+class ImagineBulkSchema(ImagineCreateBulkSchema, TaskMixin, OwnedEntitySchema):
+    prompt: str | None = None
 
     completed_at: datetime | None = None
     total_tasks: int = 0
     total_completed: int = 0
     total_failed: int = 0
-    results: list[ImagineBulkResponse] = []
-    errors: list[ImagineBulkError] = []
-    aspect_ratios: list[str]
-    engines: list[ImaginationEngines] = ImaginationEngines.bulk_engines
-
-    def get_combinations(
-        self,
-    ) -> Generator[tuple[str, ImaginationEngines], None, None]:
-        for ar, e in zip(self.aspect_ratios, self.engines):
-            yield ar, e
-
-
-class ImagineCreateBulkSchema(BaseModel):
-    prompt: str | None = None
-    delineation: str | None = None
-    context: list[dict[str, Any]] | None = None
-    enhance_prompt: bool = False
-
-    aspect_ratios: list[str] = []
-    engines: list[ImaginationEngines] = ImaginationEngines.bulk_engines
-    webhook_url: str | None = None
-
-    @model_validator(mode="after")
-    def validate_data(cls, values: "ImagineCreateBulkSchema"):
-        values.aspect_ratios = (
-            values.aspect_ratios
-            if len(values.aspect_ratios) == len(values.engines)
-            else ["1:1" for _ in values.engines]
-        )
-        for ar, engine in zip(values.aspect_ratios, values.engines):
-            data = values.model_dump()
-            data["aspect_ratio"] = ar
-            data = ImagineCreateSchema(**data, engine=engine)
-
-        return values
-
-    def get_combinations(
-        self,
-    ) -> Generator[tuple[str, ImaginationEngines], None, None]:
-        for ar, e in zip(self.aspect_ratios, self.engines):
-            yield ar, e
+    results: list[ImagineBulkResponse] | None = []
+    errors: list[ImagineBulkError] | None = []

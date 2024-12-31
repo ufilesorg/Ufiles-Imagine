@@ -18,6 +18,8 @@ from fastapi_mongo_base.utils import aionetwork, basic, texttools
 from metisai.async_metis import AsyncMetisBot
 from PIL import Image
 from server.config import Settings
+from ufaas import AsyncUFaaS
+from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai, imagetools
 
 
@@ -34,7 +36,7 @@ async def upload_image(
         usso_base_url=Settings.USSO_BASE_URL,
         api_key=Settings.UFILES_API_KEY,
     )
-    image_bytes = imagetools.convert_to_jpg_bytes(image)
+    image_bytes = imagetools.convert_format_bytes(image)
     image_bytes.name = f"{image_name}.jpg"
     return await ufiles_client.upload_bytes(
         image_bytes,
@@ -188,10 +190,28 @@ async def create_prompt(imagination: Imagination | ImaginationBulk):
     return prompt
 
 
+async def create_usage(imagination: Imagination):
+    ufaas_client = AsyncUFaaS(
+        ufaas_base_url=Settings.UFAAS_BASE_URL,
+        usso_base_url=Settings.USSO_BASE_URL,
+        # TODO: Change to UFAAS_API_KEY name
+        api_key=Settings.UFILES_API_KEY,
+    )
+    usage_schema = UsageCreateSchema(
+        user_id=imagination.user_id,
+        asset="token",
+        amount=imagination.engine.price,
+        variant="imagine",
+    )
+    async with ufaas_client.saas.usages as usages:
+        usage = await usages.create_item(usage_schema.model_dump())
+        imagination.usage_id = usage.uid
+
+
 @basic.try_except_wrapper
 async def imagine_request(imagination: Imagination):
     # Get Engine class and validate it
-    imagine_engine = imagination.engine.get_class(imagination)
+    imagine_engine = imagination.engine.get_class()
     if imagine_engine is None:
         raise NotImplementedError(
             "The supported engines are Midjourney, Replicate and Dalle."
@@ -201,13 +221,13 @@ async def imagine_request(imagination: Imagination):
     imagination.prompt = await create_prompt(imagination)
 
     # Request to client or api using Engine classes
-    mid_request = await imagine_engine.imagine(callback=imagination.item_webhook_url)
+    imagine_request = await imagine_engine.imagine(imagination)
 
     # Store Engine response
-    imagination.meta_data = (imagination.meta_data or {}) | mid_request.model_dump()
-    imagination.error = mid_request.error
-    imagination.status = mid_request.status
-    imagination.task_status = mid_request.status.task_status
+    imagination.meta_data = (imagination.meta_data or {}) | imagine_request.model_dump()
+    imagination.error = imagine_request.error
+    imagination.status = imagine_request.status
+    imagination.task_status = imagine_request.status.task_status
     await imagination.save_report(f"{imagination.engine.value} has been requested.")
 
     # Create Short Polling process know the status of the request
@@ -221,7 +241,7 @@ async def imagine_update(imagination: Imagination, i=0):
 
     # Get Result from service by engine class
     # And Update imagination status
-    result = await imagine_engine.result()
+    result = await imagine_engine.result(imagination)
     imagination.error = result.error
     imagination.status = result.status
 
@@ -237,20 +257,24 @@ async def imagine_update(imagination: Imagination, i=0):
     return await imagine_update(imagination, i + 1)
 
 
-@basic.try_except_wrapper
 async def update_imagination_status(imagination: Imagination):
     try:
         if imagination.meta_data is None:
             raise ValueError("Imagination has no meta_data.")
 
         imagine_engine = imagination.engine.get_class(imagination)
-        result = await imagine_engine.result()
+        result = await imagine_engine.result(imagination)
         imagination.error = result.error
         imagination.status = result.status
         await process_imagine_webhook(
             imagination, ImagineWebhookData(**result.model_dump())
         )
     except Exception as e:
+        import traceback
+
+        traceback_str = "".join(traceback.format_tb(e.__traceback__))
+        logging.error(f"Error updating imagination status: \n{traceback_str}\n{e}")
+
         imagination.status = ImaginationStatus.error
         imagination.task_status = ImaginationStatus.error
         imagination.error = str(e)
@@ -287,6 +311,10 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
     await asyncio.gather(*[task.start_processing() for task in task_items])
+    imagination_bulk = await ImaginationBulk.get_item(
+        imagination_bulk.uid, imagination_bulk.user_id
+    )
+    return imagination_bulk
 
 
 @basic.try_except_wrapper

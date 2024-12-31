@@ -21,6 +21,7 @@ pytz
 pillow
 
 ufiles
+ufaas
 usso[fastapi]
 
 langdetect

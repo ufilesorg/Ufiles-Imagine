@@ -4,7 +4,6 @@ import fastapi
 from fastapi import BackgroundTasks
 from fastapi_mongo_base.routes import AbstractBaseRouter
 from usso.fastapi import jwt_access_security
-from utils.usages import Usages
 
 from .models import BackgroundRemoval
 from .schemas import (
@@ -72,10 +71,7 @@ class BackgroundRemovalRouter(
         background_tasks: BackgroundTasks,
         sync: bool = False,
     ):
-        usage = Usages()
-        await usage.create(await self.get_user_id(request))
         item: BackgroundRemoval = await super().create_item(request, data.model_dump())
-        await usage.update(item)
         item.task_status = "init"
         if sync:
             await item.start_processing()
