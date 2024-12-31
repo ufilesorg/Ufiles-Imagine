@@ -113,6 +113,7 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
             {
                 "bulk": {"$eq": str(self.id)},
                 "status": {"$eq": ImaginationStatus.completed},
+                "results": {"$ne": None},
             }
         ).to_list()
 
