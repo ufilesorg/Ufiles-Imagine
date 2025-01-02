@@ -1,16 +1,13 @@
-from datetime import datetime
-
-import httpx
 import openai
 from apps.imagination.schemas import ImagineSchema
 from openai.types import ImagesResponse as OpenAiImagesResponse
 from server.config import Settings
 
-from .engine import BaseEngine, Engine, EnginesResponse
+from .engine import BaseEngine, EnginesResponse
 from .schemas import ImaginationStatus
 
 
-class BaseDalle(BaseEngine):
+class Dalle(BaseEngine):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.client = openai.AsyncOpenAI(
@@ -29,6 +26,10 @@ class BaseDalle(BaseEngine):
     @property
     def price(self):
         return Settings.base_image_price * 2
+
+    @property
+    def core(self):
+        return "dalle"
 
     async def result(self, imagination: ImagineSchema, **kwargs) -> EnginesResponse:
         return imagination.results
@@ -69,4 +70,3 @@ class BaseDalle(BaseEngine):
             status=self._status(response),
             result=({"uri": response.data[0].url} if len(response.data) > 0 else None),
         )
-

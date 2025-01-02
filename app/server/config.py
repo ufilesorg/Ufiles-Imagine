@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     base_dir: Path = Path(__file__).resolve().parent.parent
     base_path: str = "/v1/apps/imagine"
-    update_time: int = 6
+    update_time: int = 10
 
     METIS_DALLE_BOT_ID: str = os.getenv("METIS_DALLE_BOT_ID")
     METIS_BOT_ID: str = os.getenv("METIS_BOT_ID")

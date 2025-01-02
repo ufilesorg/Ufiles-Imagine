@@ -20,7 +20,7 @@ class ImagineCreateSchema(BaseModel):
     @model_validator(mode="after")
     def validate_data(cls, values: "ImagineCreateSchema"):
         engine = values.engine
-        validated, message = engine.get_class(None).validate(values)
+        validated, message = engine.get_class().validate(values)
 
         if not validated:
             raise ValueError(message)
@@ -43,12 +43,16 @@ class ImagineSchema(ImagineCreateSchema, TaskMixin, OwnedEntitySchema):
     usage_id: str | None = None
 
 
-class ImagineWebhookData(BaseModel):
+class MidjourneyWebhookData(BaseModel):
     prompt: str
     status: ImaginationStatus
     percentage: int
     result: dict[str, Any] | None = None
     error: Any | None = None
+
+    @field_validator("status", mode="before")
+    def validate_status(cls, value):
+        return ImaginationStatus.from_midjourney(value)
 
     @field_validator("percentage", mode="before")
     def validate_percentage(cls, value):

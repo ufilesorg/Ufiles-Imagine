@@ -17,6 +17,13 @@ class ImaginationStatus(str, Enum):
     error = "error"
     cancelled = "cancelled"
 
+    @property
+    def progress(self):
+        return {
+            ImaginationStatus.processing: 50,
+            ImaginationStatus.done: 100,
+        }.get(self, 0)
+
     @classmethod
     def from_midjourney(cls, status: str):
         return {
@@ -24,6 +31,15 @@ class ImaginationStatus(str, Enum):
             "queue": ImaginationStatus.queue,
             "waiting": ImaginationStatus.waiting,
             "running": ImaginationStatus.processing,
+            "completed": ImaginationStatus.completed,
+            "error": ImaginationStatus.error,
+        }.get(status, ImaginationStatus.error)
+
+    @classmethod
+    def from_replicate(cls, status: str):
+        return {
+            "processing": ImaginationStatus.processing,
+            "succeeded": ImaginationStatus.completed,
             "completed": ImaginationStatus.completed,
             "error": ImaginationStatus.error,
         }.get(status, ImaginationStatus.error)
@@ -73,6 +89,12 @@ class EnginesDetails(BaseModel):
     status: ImaginationStatus
     percentage: int | None = None
     result: dict | None = None
+
+    @field_validator("status", mode="before")
+    def validate_status(cls, value):
+        mid = ImaginationStatus.from_midjourney(value)
+        rep = ImaginationStatus.from_replicate(value)
+        return mid if mid != ImaginationStatus.error else rep
 
     @field_validator("percentage", mode="before")
     def validate_percentage(cls, value):

@@ -154,11 +154,11 @@ def convert_format_bytes(
         "tiff": "TIFF",
         "ico": "ICO",
     }
-    
+
     image_bytes = BytesIO()
     if convert_format == "jpg":
         image = image.convert("RGB")
-        
+
     image.save(
         image_bytes,
         format=convert_formats.get(convert_format.lower(), "JPEG"),

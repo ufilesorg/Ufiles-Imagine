@@ -3,6 +3,7 @@ import uuid
 
 import fastapi
 from apps.ai.engine import ImaginationEngines, ImaginationEnginesSchema
+from apps.ai.replicate_schemas import PredictionModelWebhookData
 from fastapi import BackgroundTasks
 from fastapi_mongo_base.core.exceptions import BaseHTTPException
 from fastapi_mongo_base.routes import AbstractBaseRouter
@@ -15,7 +16,7 @@ from .schemas import (
     ImagineCreateBulkSchema,
     ImagineCreateSchema,
     ImagineSchema,
-    ImagineWebhookData,
+    MidjourneyWebhookData,
 )
 from .services import process_imagine_webhook
 
@@ -82,11 +83,18 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         return item
 
     async def webhook(
-        self, request: fastapi.Request, uid: uuid.UUID, data: ImagineWebhookData | dict
+        self,
+        request: fastapi.Request,
+        uid: uuid.UUID,
+        data: dict,
     ):
         item: Imagination = await self.get_item(uid, user_id=None)
-        logging.info(f"Webhook received: {item.engine.value} {data}")
-        if item.engine.value != "midjourney":
+        if item.engine.core == "midjourney":
+            data = MidjourneyWebhookData(**data)
+        elif item.engine.core == "replicate":
+            data = PredictionModelWebhookData(**data)
+        else:
+            logging.info(f"{type(data)} {item.engine.value} {data}")
             return {}
         if item.status == "cancelled":
             return {"message": "Imagination has been cancelled."}

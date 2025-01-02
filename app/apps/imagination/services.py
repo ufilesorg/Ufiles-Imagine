@@ -5,13 +5,14 @@ import uuid
 from datetime import datetime, timedelta
 
 import ufiles
+from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
 from apps.imagination.schemas import (
     ImaginationEngines,
     ImaginationStatus,
     ImagineResponse,
     ImagineSchema,
-    ImagineWebhookData,
+    MidjourneyWebhookData,
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
 from fastapi_mongo_base.utils import aionetwork, basic, texttools
@@ -115,8 +116,10 @@ async def process_result(imagination: Imagination, generated_url: str):
 
     return
 
-
-async def process_imagine_webhook(imagination: Imagination, data: ImagineWebhookData):
+@basic.try_except_wrapper
+async def process_imagine_webhook(
+    imagination: Imagination, data: MidjourneyWebhookData | PredictionModelWebhookData
+):
     import json_advanced as json
 
     if data.status == "error":
@@ -127,11 +130,16 @@ async def process_imagine_webhook(imagination: Imagination, data: ImagineWebhook
         return
 
     if data.status == "completed":
-        result_url = (data.result or {}).get("uri")
+        result_url = (
+            (data.result or {}).get("uri")
+            if isinstance(data, MidjourneyWebhookData)
+            else data.output
+        )
         await process_result(imagination, result_url)
         await imagination.end_processing()
 
-    imagination.task_progress = data.percentage
+    logging.info(f"{type(data)} {imagination.engine.value} {data}")
+    imagination.task_progress = getattr(data, "percentage", data.status.progress)
     imagination.task_status = data.status.task_status
 
     report = (
@@ -237,7 +245,7 @@ async def imagine_request(imagination: Imagination):
 @basic.try_except_wrapper
 @basic.delay_execution(Settings.update_time)
 async def imagine_update(imagination: Imagination, i=0):
-    imagine_engine = imagination.engine.get_class(imagination)
+    imagine_engine = imagination.engine.get_class()
 
     # Get Result from service by engine class
     # And Update imagination status
@@ -247,7 +255,7 @@ async def imagine_update(imagination: Imagination, i=0):
 
     # Process Result
     await process_imagine_webhook(
-        imagination, ImagineWebhookData(**result.model_dump())
+        imagination, MidjourneyWebhookData(**result.model_dump())
     )
 
     # Stop Short polling when the request is finished
@@ -262,12 +270,12 @@ async def update_imagination_status(imagination: Imagination):
         if imagination.meta_data is None:
             raise ValueError("Imagination has no meta_data.")
 
-        imagine_engine = imagination.engine.get_class(imagination)
+        imagine_engine = imagination.engine.get_class()
         result = await imagine_engine.result(imagination)
         imagination.error = result.error
         imagination.status = result.status
         await process_imagine_webhook(
-            imagination, ImagineWebhookData(**result.model_dump())
+            imagination, MidjourneyWebhookData(**result.model_dump())
         )
     except Exception as e:
         import traceback
@@ -299,6 +307,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
                 # context=imagination_bulk.context,
                 aspect_ratio=aspect_ratio,
                 mode="imagine",
+                webhook_url=imagination_bulk.webhook_url,
             ).model_dump()
         )
         imagination_bulk.task_references.tasks.append(
