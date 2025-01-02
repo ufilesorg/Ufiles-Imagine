@@ -5,6 +5,7 @@ from apps.imagination.schemas import ImagineSchema
 from server.config import Settings
 
 from .engine import BaseEngine, EnginesResponse
+from .replicate_schemas import PredictionModelWebhookData
 from .schemas import ImaginationStatus
 
 
@@ -41,7 +42,9 @@ class Replicate(BaseEngine):
             "failed": ImaginationStatus.error,
         }.get(status, ImaginationStatus.error)
 
-    async def result(self, imagination: ImagineSchema, **kwargs) -> ReplicateDetails:
+    async def result(
+        self, imagination: ImagineSchema, **kwargs
+    ) -> PredictionModelWebhookData:
         id = imagination.meta_data.get("id")
         prediction = await replicate.predictions.async_get(id)
         return await self._result_to_details(prediction, imagination)
@@ -67,7 +70,7 @@ class Replicate(BaseEngine):
         prediction_data = prediction.__dict__.copy()
         prediction_data.pop("status", None)
         prediction_data.pop("model", None)
-        return ReplicateDetails(
+        return PredictionModelWebhookData(
             **prediction_data,
             prompt=(
                 prediction.input["prompt"] if prediction.input else imagination.prompt

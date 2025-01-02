@@ -116,7 +116,7 @@ async def process_result(imagination: Imagination, generated_url: str):
 
     return
 
-@basic.try_except_wrapper
+
 async def process_imagine_webhook(
     imagination: Imagination, data: MidjourneyWebhookData | PredictionModelWebhookData
 ):
@@ -242,9 +242,7 @@ async def imagine_request(imagination: Imagination):
     return await imagine_update(imagination)
 
 
-@basic.try_except_wrapper
-@basic.delay_execution(Settings.update_time)
-async def imagine_update(imagination: Imagination, i=0):
+async def check_imagination_status(imagination: Imagination):
     imagine_engine = imagination.engine.get_class()
 
     # Get Result from service by engine class
@@ -253,11 +251,21 @@ async def imagine_update(imagination: Imagination, i=0):
     imagination.error = result.error
     imagination.status = result.status
 
-    # Process Result
-    await process_imagine_webhook(
-        imagination, MidjourneyWebhookData(**result.model_dump())
-    )
+    if imagination.engine.core == "midjourney":
+        data = MidjourneyWebhookData(**result.model_dump())
+    elif imagination.engine.core == "replicate":
+        data = PredictionModelWebhookData(**result.model_dump())
+    else:
+        data = MidjourneyWebhookData(**result.model_dump())
 
+    # Process Result
+    await process_imagine_webhook(imagination, data)
+
+
+@basic.try_except_wrapper
+@basic.delay_execution(Settings.update_time)
+async def imagine_update(imagination: Imagination, i=0):
+    await check_imagination_status(imagination)
     # Stop Short polling when the request is finished
     if imagination.status.is_done:
         return
@@ -270,13 +278,8 @@ async def update_imagination_status(imagination: Imagination):
         if imagination.meta_data is None:
             raise ValueError("Imagination has no meta_data.")
 
-        imagine_engine = imagination.engine.get_class()
-        result = await imagine_engine.result(imagination)
-        imagination.error = result.error
-        imagination.status = result.status
-        await process_imagine_webhook(
-            imagination, MidjourneyWebhookData(**result.model_dump())
-        )
+        await check_imagination_status(imagination)
+
     except Exception as e:
         import traceback
 
@@ -342,11 +345,13 @@ async def imagine_bulk_result(
 
 @basic.try_except_wrapper
 async def imagine_bulk_process(imagination_bulk: ImaginationBulk):
-    if (
-        len(await imagination_bulk.completed_tasks())
-        + len(await imagination_bulk.failed_tasks())
-        == imagination_bulk.total_tasks
-    ):
-        imagination_bulk.task_status = TaskStatusEnum.completed
+    total_failed = len(await imagination_bulk.failed_tasks())
+    total_completed = len(await imagination_bulk.completed_tasks())
+    if total_completed + total_failed == imagination_bulk.total_tasks:
+        imagination_bulk.task_status = (
+            TaskStatusEnum.error
+            if total_failed == imagination_bulk.total_tasks
+            else TaskStatusEnum.completed
+        )
         imagination_bulk.completed_at = datetime.now()
         await imagination_bulk.save_report(f"Bulk task is completed.")

@@ -87,6 +87,7 @@ class ImagineCreateBulkSchema(BaseModel):
     aspect_ratios: list[str] = ["1:1"]
     engines: list[ImaginationEngines] | None = None
     webhook_url: str | None = None
+    number_of_tasks: int = 1
 
     @model_validator(mode="after")
     def validate_engines(cls, item: "ImagineCreateBulkSchema"):
