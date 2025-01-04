@@ -52,12 +52,17 @@ class Imagination(ImagineSchema, OwnedEntity):
         await self.fail(message)
         return -1
 
-    async def fail(self, message: str):
+    async def fail(self, message: str, log_type: str = "error"):
+        from .services import cancel_usage
+
         self.task_status = TaskStatusEnum.error
         self.status = ImaginationStatus.error
         logging.error(f"Failed {self.uid} {message}")
-        await self.save_report(f"Image failed after retries, {message}", emit=False)
+        await self.save_report(
+            f"Imagine failed, {message}", emit=False, log_type=log_type
+        )
         await self.save_and_emit()
+        await cancel_usage(self)
         if self.bulk:
             main_task = await ImaginationBulk.get(self.bulk)
             await main_task.fail()

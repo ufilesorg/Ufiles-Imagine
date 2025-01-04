@@ -1,4 +1,5 @@
 import itertools
+import uuid
 from datetime import datetime
 from typing import Any, Generator
 
@@ -40,7 +41,7 @@ class ImagineSchema(ImagineCreateSchema, TaskMixin, OwnedEntitySchema):
     bulk: str | None = None
     status: ImaginationStatus = ImaginationStatus.init
     results: list[ImagineResponse] | None = None
-    usage_id: str | None = None
+    usage_id: uuid.UUID | None = None
 
 
 class MidjourneyWebhookData(BaseModel):
@@ -109,6 +110,10 @@ class ImagineCreateBulkSchema(BaseModel):
             if ar not in e.supported_aspect_ratios:
                 continue
             yield ar, e
+
+    @property
+    def total_price(self):
+        return sum(e.price for _, e in self.get_combinations())
 
 
 class ImagineBulkSchema(ImagineCreateBulkSchema, TaskMixin, OwnedEntitySchema):

@@ -15,7 +15,7 @@ class PredictionModelWebhookData(BaseModel):
     logs: str | None = None
     metrics: dict | None = None
     model: str
-    output: str | None = None
+    output: str | list[str] | None = None
     started_at: datetime | None = None
     status: ImaginationStatus
     percentage: int = 0

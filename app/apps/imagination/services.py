@@ -19,7 +19,7 @@ from fastapi_mongo_base.utils import aionetwork, basic, texttools
 from metisai.async_metis import AsyncMetisBot
 from PIL import Image
 from server.config import Settings
-from ufaas import AsyncUFaaS
+from ufaas import AsyncUFaaS, exceptions
 from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai, imagetools
 
@@ -135,7 +135,10 @@ async def process_imagine_webhook(
             if isinstance(data, MidjourneyWebhookData)
             else data.output
         )
-        await process_result(imagination, result_url)
+        if isinstance(result_url, str):
+            result_url = [result_url]
+        for url in result_url:
+            await process_result(imagination, url)
         await imagination.end_processing()
 
     logging.info(f"{type(data)} {imagination.engine.value} {data}")
@@ -198,7 +201,8 @@ async def create_prompt(imagination: Imagination | ImaginationBulk):
     return prompt
 
 
-async def create_usage(imagination: Imagination):
+@basic.try_except_wrapper
+async def meter_cost(imagination: Imagination):
     ufaas_client = AsyncUFaaS(
         ufaas_base_url=Settings.UFAAS_BASE_URL,
         usso_base_url=Settings.USSO_BASE_URL,
@@ -211,9 +215,41 @@ async def create_usage(imagination: Imagination):
         amount=imagination.engine.price,
         variant="imagine",
     )
-    async with ufaas_client.saas.usages as usages:
-        usage = await usages.create_item(usage_schema.model_dump())
-        imagination.usage_id = usage.uid
+    usage = await ufaas_client.saas.usages.create_item(
+        usage_schema.model_dump(mode="json")
+    )
+    imagination.usage_id = usage.uid
+    await imagination.save()
+    return usage
+
+
+@basic.try_except_wrapper
+async def get_quota(user_id: uuid.UUID):
+    ufaas_client = AsyncUFaaS(
+        ufaas_base_url=Settings.UFAAS_BASE_URL,
+        usso_base_url=Settings.USSO_BASE_URL,
+        # TODO: Change to UFAAS_API_KEY name
+        api_key=Settings.UFILES_API_KEY,
+    )
+    quotas = await ufaas_client.saas.enrollments.get_quotas(
+        user_id=user_id,
+        asset="token",
+        variant="imagine",
+    )
+    return quotas.quota
+
+
+@basic.try_except_wrapper
+async def cancel_usage(imagination: Imagination):
+    if imagination.usage_id is None:
+        return
+
+    ufaas_client = AsyncUFaaS(
+        ufaas_base_url=Settings.UFAAS_BASE_URL,
+        usso_base_url=Settings.USSO_BASE_URL,
+        api_key=Settings.UFILES_API_KEY,
+    )
+    await ufaas_client.saas.usages.cancel_item(imagination.usage_id)
 
 
 @basic.try_except_wrapper
@@ -224,6 +260,15 @@ async def imagine_request(imagination: Imagination):
         raise NotImplementedError(
             "The supported engines are Midjourney, Replicate and Dalle."
         )
+
+    # Meter cost
+    usage = await meter_cost(imagination)
+    if usage is None:
+        logging.error(
+            f"Insufficient balance. {imagination.user_id} {imagination.engine.value}"
+        )
+        await imagination.fail("Insufficient balance.")
+        return
 
     # Create prompt using context attributes (ratio, style ...)
     imagination.prompt = await create_prompt(imagination)
@@ -275,8 +320,8 @@ async def imagine_update(imagination: Imagination, i=0):
 
 async def update_imagination_status(imagination: Imagination):
     try:
-        if imagination.meta_data is None:
-            raise ValueError("Imagination has no meta_data.")
+        # if imagination.meta_data is None:
+        #     raise ValueError("Imagination has no meta_data.")
 
         await check_imagination_status(imagination)
 
@@ -292,8 +337,15 @@ async def update_imagination_status(imagination: Imagination):
         await imagination.save()
 
 
-@basic.try_except_wrapper
+# @basic.try_except_wrapper
 async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
+    quota = await get_quota(imagination_bulk.user_id)
+    if quota < imagination_bulk.total_price:
+        await imagination_bulk.save_report("Insufficient balance.", log_type="error")
+        raise exceptions.InsufficientFunds(
+            f"You have only {quota} tokens, while you need {imagination_bulk.total_price} tokens."
+        )
+
     imagination_bulk.task_references = TaskReferenceList(
         tasks=[],
         mode="parallel",
@@ -345,13 +397,20 @@ async def imagine_bulk_result(
 
 @basic.try_except_wrapper
 async def imagine_bulk_process(imagination_bulk: ImaginationBulk):
-    total_failed = len(await imagination_bulk.failed_tasks())
-    total_completed = len(await imagination_bulk.completed_tasks())
-    if total_completed + total_failed == imagination_bulk.total_tasks:
-        imagination_bulk.task_status = (
-            TaskStatusEnum.error
-            if total_failed == imagination_bulk.total_tasks
-            else TaskStatusEnum.completed
-        )
+    failed_tasks = await imagination_bulk.failed_tasks()
+    completed_tasks = await imagination_bulk.completed_tasks()
+    if len(failed_tasks) + len(completed_tasks) != imagination_bulk.total_tasks:
+        return
+
+    imagination_bulk.task_status = (
+        TaskStatusEnum.error
+        if len(failed_tasks) == imagination_bulk.total_tasks
+        else TaskStatusEnum.completed
+    )
+    if imagination_bulk.task_status == TaskStatusEnum.completed:
         imagination_bulk.completed_at = datetime.now()
         await imagination_bulk.save_report(f"Bulk task is completed.")
+        return
+
+    fail_message = failed_tasks[0].task_report
+    await imagination_bulk.save_report(str(fail_message))
