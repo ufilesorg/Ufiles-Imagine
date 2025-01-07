@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from tkinter import NO
 import uuid
 from datetime import datetime, timedelta
 
@@ -340,7 +341,12 @@ async def update_imagination_status(imagination: Imagination):
 # @basic.try_except_wrapper
 async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     quota = await get_quota(imagination_bulk.user_id)
-    if quota < imagination_bulk.total_price:
+    if quota is None or imagination_bulk.total_price is None:
+        logging.warning(
+            f"Quota or total_price is None: {imagination_bulk.user_id} {quota} {imagination_bulk.total_price}"
+        )
+
+    elif quota < imagination_bulk.total_price:
         await imagination_bulk.save_report("Insufficient balance.", log_type="error")
         raise exceptions.InsufficientFunds(
             f"You have only {quota} tokens, while you need {imagination_bulk.total_price} tokens."
