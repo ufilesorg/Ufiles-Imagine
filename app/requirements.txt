@@ -1,8 +1,7 @@
 uvicorn
 fastapi
-pydantic
+pydantic[email]
 httpx
-email-validator
 
 singleton_package
 json-advanced

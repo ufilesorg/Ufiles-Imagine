@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from tkinter import NO
 import uuid
 from datetime import datetime, timedelta
 
