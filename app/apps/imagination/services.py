@@ -15,13 +15,26 @@ from apps.imagination.schemas import (
     MidjourneyWebhookData,
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
-from fastapi_mongo_base.utils import aionetwork, basic, texttools, imagetools
+from fastapi_mongo_base.utils import aionetwork, basic, imagetools, texttools
 from metisai.async_metis import AsyncMetisBot
 from PIL import Image
 from server.config import Settings
 from ufaas import AsyncUFaaS, exceptions
 from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai
+import itertools
+
+
+def crop_image(image: Image.Image, sections=(2, 2), **kwargs) -> list[Image.Image]:
+    parts = []
+    for i, j in itertools.product(range(sections[0]), range(sections[1])):
+        x = j * image.width // sections[0]
+        y = i * image.height // sections[1]
+        region = image.crop(
+            (x, y, x + image.width // sections[0], y + image.height // sections[1])
+        )
+        parts.append(region)
+    return parts
 
 
 async def upload_image(
@@ -37,7 +50,7 @@ async def upload_image(
         usso_base_url=Settings.USSO_BASE_URL,
         api_key=Settings.UFILES_API_KEY,
     )
-    image_bytes = imagetools.convert_format_bytes(image)
+    image_bytes = imagetools.convert_image_bytes(image, format="JPEG", quality=90)
     image_bytes.name = f"{image_name}.jpg"
     return await ufiles_client.upload_bytes(
         image_bytes,
@@ -92,7 +105,7 @@ async def process_result(imagination: Imagination, generated_url: str):
 
         # Crop the image into 4 sections for midjourney engine
         if imagination.engine == ImaginationEngines.midjourney:
-            images = imagetools.crop_image(images[0], sections=(2, 2))
+            images = crop_image(images[0], sections=(2, 2))
 
         # Upload result images on ufiles
         uploaded_items = await upload_images(
