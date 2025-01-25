@@ -13,6 +13,7 @@ class ReplicateDetails(EnginesResponse):
     input: dict[str, Any]
     model: Literal[
         "ideogram-ai/ideogram-v2-turbo",
+        "ideogram-ai/ideogram-v2",
         "black-forest-labs/flux-schnell",
         "black-forest-labs/flux-1.1-pro",
         "stability-ai/stable-diffusion-3",
@@ -97,6 +98,36 @@ class Replicate(BaseEngine):
 
 
 class Ideogram(Replicate):
+    application_name: Literal["ideogram-ai/ideogram-v2"] = (
+        "ideogram-ai/ideogram-v2-turbo"
+    )
+
+    @property
+    def supported_aspect_ratios(self):
+        return {
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "3:2",
+            "2:3",
+            "16:10",
+            "10:16",
+            "3:1",
+            "1:3",
+        }
+
+    @property
+    def thumbnail_url(self):
+        return "https://media.pixiee.io/v1/f/19d4df43-ea1e-4562-a8e1-8ee301bd0a88/ideogram-icon.png?width=100"
+
+    @property
+    def price(self):
+        return Settings.base_image_price * 24
+
+
+class IdeogramTurbo(Replicate):
     application_name: Literal["ideogram-ai/ideogram-v2-turbo"] = (
         "ideogram-ai/ideogram-v2-turbo"
     )
@@ -123,7 +154,7 @@ class Ideogram(Replicate):
 
     @property
     def price(self):
-        return Settings.base_image_price * 2
+        return Settings.base_image_price * 15
 
 
 class FluxSchnell(Replicate):
@@ -183,7 +214,7 @@ class Flux11(Replicate):
 
     @property
     def price(self):
-        return Settings.base_image_price * 2
+        return Settings.base_image_price * 12
 
 
 class Photon(Replicate):
@@ -207,7 +238,7 @@ class Photon(Replicate):
 
     @property
     def price(self):
-        return Settings.base_image_price * 2
+        return Settings.base_image_price * 9
 
 
 class PhotonFlash(Replicate):
@@ -231,7 +262,7 @@ class PhotonFlash(Replicate):
 
     @property
     def price(self):
-        return Settings.base_image_price * 1
+        return Settings.base_image_price * 3
 
 
 class StableDiffusion3(Replicate):
@@ -261,4 +292,4 @@ class StableDiffusion3(Replicate):
 
     @property
     def price(self):
-        return Settings.base_image_price * 1
+        return Settings.base_image_price * 2

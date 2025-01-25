@@ -67,7 +67,7 @@ class Midjourney(BaseEngine):
 
     @property
     def price(self):
-        return Settings.base_image_price * 2
+        return Settings.base_image_price * 10
 
     @property
     def core(self):

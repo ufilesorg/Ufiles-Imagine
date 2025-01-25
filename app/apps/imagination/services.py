@@ -15,13 +15,13 @@ from apps.imagination.schemas import (
     MidjourneyWebhookData,
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
-from fastapi_mongo_base.utils import aionetwork, basic, texttools
+from fastapi_mongo_base.utils import aionetwork, basic, texttools, imagetools
 from metisai.async_metis import AsyncMetisBot
 from PIL import Image
 from server.config import Settings
 from ufaas import AsyncUFaaS, exceptions
 from ufaas.apps.saas.schemas import UsageCreateSchema
-from utils import ai, imagetools
+from utils import ai
 
 
 async def upload_image(
@@ -211,7 +211,7 @@ async def meter_cost(imagination: Imagination):
     )
     usage_schema = UsageCreateSchema(
         user_id=imagination.user_id,
-        asset="token",
+        asset="coin",
         amount=imagination.engine.price,
         variant="imagine",
     )
@@ -233,7 +233,7 @@ async def get_quota(user_id: uuid.UUID):
     )
     quotas = await ufaas_client.saas.enrollments.get_quotas(
         user_id=user_id,
-        asset="token",
+        asset="coin",
         variant="imagine",
     )
     return quotas.quota
@@ -348,7 +348,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     elif quota < imagination_bulk.total_price:
         await imagination_bulk.save_report("Insufficient balance.", log_type="error")
         raise exceptions.InsufficientFunds(
-            f"You have only {quota} tokens, while you need {imagination_bulk.total_price} tokens."
+            f"You have only {quota} coins, while you need {imagination_bulk.total_price} coins."
         )
 
     imagination_bulk.task_references = TaskReferenceList(

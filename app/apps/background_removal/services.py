@@ -4,10 +4,9 @@ import uuid
 
 import ufiles
 from apps.imagination.schemas import ImagineResponse
-from fastapi_mongo_base.utils import aionetwork, basic
+from fastapi_mongo_base.utils import aionetwork, basic, imagetools
 from PIL import Image
 from server.config import Settings
-from utils import imagetools
 
 from .models import BackgroundRemoval
 from .schemas import BackgroundRemovalEngines, BackgroundRemovalWebhookData

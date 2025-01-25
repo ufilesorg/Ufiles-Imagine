@@ -27,4 +27,4 @@ class Settings(BaseSettings):
     UFAAS_BASE_URL: str = os.getenv("UFAAS_BASE_URL")
     USSO_BASE_URL: str = os.getenv("USSO_URL")
 
-    base_image_price: int = 10_000
+    base_image_price: int = 1

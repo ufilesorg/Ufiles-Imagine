@@ -90,6 +90,7 @@ class BaseEngine(metaclass=Singleton):
 class ImaginationEngines(str, Enum):
     midjourney = "midjourney"
     ideogram = "ideogram"
+    ideogram_turbo = "ideogram_turbo"
     photon = "photon"
     flux_1_1 = "flux_1.1"
     flux_schnell = "flux_schnell"
@@ -108,6 +109,7 @@ class ImaginationEngines(str, Enum):
             ImaginationEngines.dalle,
             ImaginationEngines.flux_1_1,
             ImaginationEngines.ideogram,
+            ImaginationEngines.ideogram_turbo,
             ImaginationEngines.photon,
         ]
         return [
@@ -138,6 +140,7 @@ class ImaginationEngines(str, Enum):
             ImaginationEngines.dalle: Dalle(),
             ImaginationEngines.midjourney: Midjourney(),
             ImaginationEngines.ideogram: Ideogram(),
+            ImaginationEngines.ideogram_turbo: IdeogramTurbo(),
             ImaginationEngines.flux_schnell: FluxSchnell(),
             ImaginationEngines.stability: StableDiffusion3(),
             ImaginationEngines.flux_1_1: Flux11(),

@@ -25,7 +25,7 @@ class Dalle(BaseEngine):
 
     @property
     def price(self):
-        return Settings.base_image_price * 2
+        return Settings.base_image_price * 24
 
     @property
     def core(self):
