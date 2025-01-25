@@ -134,6 +134,7 @@ class ImaginationEngines(str, Enum):
             Photon,
             PhotonFlash,
             StableDiffusion3,
+            IdeogramTurbo,
         )
 
         return {
