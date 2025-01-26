@@ -43,6 +43,10 @@ class ImagineSchema(ImagineCreateSchema, TaskMixin, OwnedEntitySchema):
     results: list[ImagineResponse] | None = None
     usage_id: uuid.UUID | None = None
 
+    @property
+    def total_price(self):
+        return self.engine.price
+
 
 class MidjourneyWebhookData(BaseModel):
     prompt: str

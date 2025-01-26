@@ -18,7 +18,7 @@ from .schemas import (
     ImagineSchema,
     MidjourneyWebhookData,
 )
-from .services import process_imagine_webhook
+from .services import check_quota, process_imagine_webhook
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
@@ -32,34 +32,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         )
 
     def config_routes(self, **kwargs):
-        self.router.add_api_route(
-            "/imagination/",
-            self.list_items,
-            methods=["GET"],
-            response_model=self.list_response_schema,
-            status_code=200,
-        )
-        self.router.add_api_route(
-            "/imagination/",
-            self.create_item,
-            methods=["POST"],
-            response_model=self.create_response_schema,
-            status_code=201,
-        )
-        self.router.add_api_route(
-            "/imagination/{uid:uuid}",
-            self.retrieve_item,
-            methods=["GET"],
-            response_model=self.retrieve_response_schema,
-            status_code=200,
-        )
-        self.router.add_api_route(
-            "/imagination/{uid:uuid}",
-            self.delete_item,
-            methods=["DELETE"],
-            # status_code=204,
-            response_model=self.delete_response_schema,
-        )
+        super().config_routes(prefix="/imagination", update_route=False, **kwargs)
         self.router.add_api_route(
             "/imagination/{uid:uuid}/webhook",
             self.webhook,
@@ -75,6 +48,8 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         sync: bool = False,
     ):
         item: Imagination = await super().create_item(request, data.model_dump())
+        await check_quota(item)
+
         item.task_status = "init"
         if sync:
             await item.start_processing()
@@ -154,6 +129,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
+        await check_quota(item)
         if sync:
             item = await item.start_processing()
         else:

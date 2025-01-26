@@ -170,14 +170,14 @@ class ImaginationEngines(str, Enum):
 class ImaginationEnginesSchema(BaseModel):
     engine: ImaginationEngines = ImaginationEngines.midjourney
     thumbnail_url: str
-    price: float
     supported_aspect_ratios: set
+    coin: float
 
     @classmethod
     def from_model(cls, model: ImaginationEngines):
         return cls(
             engine=model,
             thumbnail_url=model.thumbnail_url,
-            price=model.price,
             supported_aspect_ratios=model.supported_aspect_ratios,
+            coin=model.price,
         )

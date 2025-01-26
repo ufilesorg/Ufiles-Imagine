@@ -24,7 +24,5 @@ ufiles
 ufaas
 usso[fastapi]
 
-langdetect
 openai
-metisai
 replicate

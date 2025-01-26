@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import json
 import logging
 import uuid
@@ -16,13 +17,34 @@ from apps.imagination.schemas import (
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
 from fastapi_mongo_base.utils import aionetwork, basic, imagetools, texttools
-from metisai.async_metis import AsyncMetisBot
 from PIL import Image
 from server.config import Settings
 from ufaas import AsyncUFaaS, exceptions
 from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai
-import itertools
+
+# Store conditions for active imaginations
+_imagination_conditions: dict[uuid.UUID, asyncio.Condition] = {}
+
+
+def get_condition(imagination_id: uuid.UUID) -> asyncio.Condition:
+    """Get or create condition for an imagination"""
+    if imagination_id not in _imagination_conditions:
+        _imagination_conditions[imagination_id] = asyncio.Condition()
+    return _imagination_conditions[imagination_id]
+
+
+def cleanup_condition(imagination_id: uuid.UUID):
+    """Remove condition when imagination is complete"""
+    if imagination_id in _imagination_conditions:
+        del _imagination_conditions[imagination_id]
+
+
+async def release_condition(imagination_id: uuid.UUID):
+    condition = get_condition(imagination_id)
+    async with condition:
+        condition.notify_all()
+    cleanup_condition(imagination_id)
 
 
 def crop_image(image: Image.Image, sections=(2, 2), **kwargs) -> list[Image.Image]:
@@ -154,9 +176,18 @@ async def process_imagine_webhook(
             await process_result(imagination, url)
         await imagination.end_processing()
 
-    logging.info(f"{type(data)} {imagination.engine.value} {data}")
-    imagination.task_progress = getattr(data, "percentage", data.status.progress)
+        # Add condition notification with logging
+        await release_condition(imagination.uid)
+
+    imagination.task_progress = (
+        getattr(data, "percentage", data.status.progress)
+        if not data.status.is_done
+        else 100
+    )
     imagination.task_status = data.status.task_status
+    logging.info(
+        f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_imagination_conditions)=} {type(data).__name__=}"
+    )
 
     report = (
         f"{imagination.engine.value} completed."
@@ -167,8 +198,8 @@ async def process_imagine_webhook(
     await imagination.save_report(report)
 
     if data.status == "completed" and imagination.task_status != "completed":
+        logging.info(f"task completed")
         logging.info(json.dumps(imagination.model_dump(), indent=2, ensure_ascii=False))
-        logging.info(json.dumps(data.model_dump(), indent=2, ensure_ascii=False))
 
     if not data.status.is_done and datetime.now() - imagination.created_at >= timedelta(
         minutes=10
@@ -176,18 +207,10 @@ async def process_imagine_webhook(
         imagination.task_status = TaskStatusEnum.error
         imagination.status = ImaginationStatus.error
         imagination.error = "Service Timeout Error: The service did not provide a result within the expected time frame."
-        await imagination.save_report(
+        await imagination.fail(
             f"{imagination.engine.value} service didn't respond in time."
         )
-
-
-async def request_imagine_metis(
-    imagination: Imagination,
-    engine: ImaginationEngines = ImaginationEngines.midjourney,
-):
-    bot = AsyncMetisBot(Settings.METIS_API_KEY, engine.metis_bot_id)
-    session = await bot.create_session()
-    await bot.send_message_async(session, f"/imagine {imagination.prompt}")
+        await release_condition(imagination.uid)
 
 
 async def create_prompt(imagination: Imagination | ImaginationBulk):
@@ -214,7 +237,6 @@ async def create_prompt(imagination: Imagination | ImaginationBulk):
     return prompt
 
 
-@basic.try_except_wrapper
 async def meter_cost(imagination: Imagination):
     ufaas_client = AsyncUFaaS(
         ufaas_base_url=Settings.UFAAS_BASE_URL,
@@ -229,7 +251,7 @@ async def meter_cost(imagination: Imagination):
         variant="imagine",
     )
     usage = await ufaas_client.saas.usages.create_item(
-        usage_schema.model_dump(mode="json")
+        usage_schema.model_dump(mode="json"), timeout=30
     )
     imagination.usage_id = usage.uid
     await imagination.save()
@@ -248,6 +270,7 @@ async def get_quota(user_id: uuid.UUID):
         user_id=user_id,
         asset="coin",
         variant="imagine",
+        timeout=30,
     )
     return quotas.quota
 
@@ -265,39 +288,73 @@ async def cancel_usage(imagination: Imagination):
     await ufaas_client.saas.usages.cancel_item(imagination.usage_id)
 
 
-@basic.try_except_wrapper
+async def check_quota(imagination: Imagination | ImaginationBulk):
+    quota = await get_quota(imagination.user_id)
+    if quota is None or quota < imagination.total_price:
+        raise exceptions.InsufficientFunds(
+            f"You have only {quota} coins, while you need {imagination.total_price} coins."
+        )
+
+
 async def imagine_request(imagination: Imagination):
-    # Get Engine class and validate it
-    imagine_engine = imagination.engine.get_class()
-    if imagine_engine is None:
-        raise NotImplementedError(
-            "The supported engines are Midjourney, Replicate and Dalle."
+    try:
+        # Get Engine class and validate it
+        imagine_engine = imagination.engine.get_class()
+        if imagine_engine is None:
+            raise NotImplementedError(
+                "The supported engines are Midjourney, Replicate and Dalle."
+            )
+
+        # Meter cost
+        usage = await meter_cost(imagination)
+        if usage is None:
+            logging.error(
+                f"Insufficient balance. {imagination.user_id} {imagination.engine.value}"
+            )
+            await imagination.fail("Insufficient balance.")
+            return
+
+        # Create prompt using context attributes (ratio, style ...)
+        imagination.prompt = await create_prompt(imagination)
+
+        # Request to client or api using Engine classes
+        logging.info(
+            f"Requesting {imagination.engine.value} with prompt: {imagination.prompt}"
         )
+        imagine_request = await imagine_engine.imagine(imagination)
+        logging.info(f"Requested {imagination.engine.value}")
 
-    # Meter cost
-    usage = await meter_cost(imagination)
-    if usage is None:
-        logging.error(
-            f"Insufficient balance. {imagination.user_id} {imagination.engine.value}"
-        )
-        await imagination.fail("Insufficient balance.")
-        return
+        # Store Engine response
+        imagination.meta_data = (
+            imagination.meta_data or {}
+        ) | imagine_request.model_dump()
+        imagination.error = imagine_request.error
+        imagination.status = imagine_request.status
+        imagination.task_status = imagine_request.status.task_status
+        await imagination.save_report(f"{imagination.engine.value} has been requested.")
 
-    # Create prompt using context attributes (ratio, style ...)
-    imagination.prompt = await create_prompt(imagination)
+        if imagination.engine.core != "dalle":
+            condition = get_condition(imagination.uid)
+            async with condition:
+                await condition.wait()
+            cleanup_condition(imagination.uid)
 
-    # Request to client or api using Engine classes
-    imagine_request = await imagine_engine.imagine(imagination)
+        imagination = await Imagination.get_item(imagination.uid, imagination.user_id)
+        return imagination
 
-    # Store Engine response
-    imagination.meta_data = (imagination.meta_data or {}) | imagine_request.model_dump()
-    imagination.error = imagine_request.error
-    imagination.status = imagine_request.status
-    imagination.task_status = imagine_request.status.task_status
-    await imagination.save_report(f"{imagination.engine.value} has been requested.")
+    except Exception as e:
+        import traceback
 
-    # Create Short Polling process know the status of the request
-    return await imagine_update(imagination)
+        traceback_str = "".join(traceback.format_tb(e.__traceback__))
+        logging.error(f"Error updating imagination status: \n{traceback_str}\n{e}")
+
+        imagination.status = ImaginationStatus.error
+        imagination.task_status = ImaginationStatus.error
+        imagination.error = str(e)
+        condition = get_condition(imagination.uid)
+        await release_condition(imagination.uid)
+
+        await imagination.fail(str(e))
 
 
 async def check_imagination_status(imagination: Imagination):
@@ -320,23 +377,13 @@ async def check_imagination_status(imagination: Imagination):
     await process_imagine_webhook(imagination, data)
 
 
-@basic.try_except_wrapper
-@basic.delay_execution(Settings.update_time)
-async def imagine_update(imagination: Imagination, i=0):
-    await check_imagination_status(imagination)
-    # Stop Short polling when the request is finished
-    if imagination.status.is_done:
-        return
-
-    return await imagine_update(imagination, i + 1)
-
-
 async def update_imagination_status(imagination: Imagination):
     try:
-        # if imagination.meta_data is None:
-        #     raise ValueError("Imagination has no meta_data.")
-
         await check_imagination_status(imagination)
+
+        # If status is done, notify with logging
+        if imagination.status.is_done:
+            await release_condition(imagination.uid)
 
     except Exception as e:
         import traceback
@@ -347,7 +394,9 @@ async def update_imagination_status(imagination: Imagination):
         imagination.status = ImaginationStatus.error
         imagination.task_status = ImaginationStatus.error
         imagination.error = str(e)
-        await imagination.save()
+        await release_condition(imagination.uid)
+
+        await imagination.fail(str(e))
 
 
 # @basic.try_except_wrapper
@@ -388,7 +437,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         )
 
     imagination_bulk.task_status = TaskStatusEnum.processing
-    await imagination_bulk.save_report(f"Bulk task was ordered.")
+    await imagination_bulk.save_report(f"Bulk task was ordered.", emit=False)
     task_items: list[Imagination] = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
