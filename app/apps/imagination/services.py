@@ -5,8 +5,8 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
-from aiocache import cached
 import ufiles
+from aiocache import cached
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
 from apps.imagination.schemas import (
@@ -313,12 +313,8 @@ async def imagine_request(imagination: Imagination):
         imagination.prompt = await create_prompt(imagination)
 
         # Request to client or api using Engine classes
-        logging.info(
-            f"imagine request {imagination.engine.value} with prompt: {imagination.prompt}"
-        )
         imagine_request = await imagine_engine.imagine(imagination)
-        logging.info(f"imagine requested {imagination.engine.value} is done")
-
+        
         # Store Engine response
         imagination.meta_data = (
             imagination.meta_data or {}
@@ -397,7 +393,6 @@ async def update_imagination_status(imagination: Imagination):
 
 # @basic.try_except_wrapper
 async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
-    logging.info(f"imagine_bulk_request")
     imagination_bulk.task_references = TaskReferenceList(
         tasks=[],
         mode="parallel",
@@ -426,9 +421,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     task_items: list[Imagination] = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
-    logging.info(f"start_processing {imagination_bulk.uid} for all imagine")
     await asyncio.gather(*[task.start_processing() for task in task_items])
-    logging.info(f"start_processing {imagination_bulk.uid} for all imagine is done")
     imagination_bulk = await ImaginationBulk.get_item(
         imagination_bulk.uid, imagination_bulk.user_id
     )
