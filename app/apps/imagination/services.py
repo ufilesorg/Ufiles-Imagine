@@ -4,9 +4,12 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
+from io import BytesIO
 
+import httpx
 import ufiles
 from aiocache import cached
+from apps.ai.engine import EnginesResponse
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
 from apps.imagination.schemas import (
@@ -17,7 +20,7 @@ from apps.imagination.schemas import (
     MidjourneyWebhookData,
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
-from fastapi_mongo_base.utils import aionetwork, basic, imagetools, texttools
+from fastapi_mongo_base.utils import basic, imagetools, texttools
 from PIL import Image
 from server.config import Settings
 from ufaas import AsyncUFaaS, exceptions
@@ -121,8 +124,11 @@ async def upload_images(
 
 @basic.try_except_wrapper
 async def process_result(imagination: Imagination, generated_url: str):
+    logging.info(f"process_result {generated_url=}")
     # Download the image
-    image_bytes = await aionetwork.aio_request_binary(url=generated_url)
+    async with httpx.AsyncClient() as client:
+        response = await client.get(generated_url)
+        image_bytes = BytesIO(response.content)
     images = [Image.open(image_bytes)]
     file_upload_dir = "imaginations"
 
@@ -146,7 +152,8 @@ async def process_result(imagination: Imagination, generated_url: str):
 
 
 async def process_imagine_webhook(
-    imagination: Imagination, data: MidjourneyWebhookData | PredictionModelWebhookData
+    imagination: Imagination,
+    data: MidjourneyWebhookData | PredictionModelWebhookData | EnginesResponse,
 ):
     import json_advanced as json
 
@@ -158,11 +165,15 @@ async def process_imagine_webhook(
         return imagination
 
     if data.status == "completed":
-        result_url = (
-            (data.result or {}).get("uri")
-            if isinstance(data, MidjourneyWebhookData)
-            else data.output
-        )
+        if isinstance(data, MidjourneyWebhookData | EnginesResponse):
+            result_url = (data.result or {}).get("uri")
+        elif isinstance(data, PredictionModelWebhookData):
+            result_url = data.output
+        elif isinstance(data, EnginesResponse):
+            result_url = data.result
+        else:
+            raise ValueError(f"Invalid data type: {type(data)}")
+
         if isinstance(result_url, str):
             result_url = [result_url]
         for url in result_url:
@@ -314,7 +325,7 @@ async def imagine_request(imagination: Imagination):
 
         # Request to client or api using Engine classes
         imagine_request = await imagine_engine.imagine(imagination)
-        
+
         # Store Engine response
         imagination.meta_data = (
             imagination.meta_data or {}
@@ -325,7 +336,7 @@ async def imagine_request(imagination: Imagination):
         await imagination.save_report(f"{imagination.engine.value} has been requested.")
 
         if imagination.engine.core == "dalle":
-            return await check_imagination_status(imagination)
+            return await process_imagine_webhook(imagination, imagine_request)
         condition = get_condition(imagination.uid)
         async with condition:
             await condition.wait()
@@ -355,15 +366,17 @@ async def check_imagination_status(imagination: Imagination):
     # Get Result from service by engine class
     # And Update imagination status
     result = await imagine_engine.result(imagination)
-    imagination.error = result.error
-    imagination.status = result.status
+    if result:
+        imagination.error = result.error
+        imagination.status = result.status
 
     if imagination.engine.core == "midjourney":
         data = MidjourneyWebhookData(**result.model_dump())
     elif imagination.engine.core == "replicate":
         data = PredictionModelWebhookData(**result.model_dump())
     else:
-        data = MidjourneyWebhookData(**result.model_dump())
+        # dalle
+        pass
 
     # Process Result
     return await process_imagine_webhook(imagination, data)

@@ -130,7 +130,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
             }
         )
         await check_quota(user_id, item.total_price)
-        
+
         if sync:
             item = await item.start_processing()
         else:
