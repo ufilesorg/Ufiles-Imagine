@@ -47,6 +47,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         background_tasks: BackgroundTasks,
         sync: bool = False,
     ):
+        logging.info(f'created')
         item: Imagination = await super().create_item(request, data.model_dump())
         await check_quota(item)
 
@@ -120,7 +121,9 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         background_tasks: BackgroundTasks,
         sync: bool = False,
     ):
+        logging.info(f'created')
         user_id = await self.get_user_id(request)
+        await check_quota(data)
         item: ImaginationBulk = await ImaginationBulk.create_item(
             {
                 "user_id": user_id,
@@ -129,7 +132,6 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
-        await check_quota(item)
         if sync:
             item = await item.start_processing()
         else:

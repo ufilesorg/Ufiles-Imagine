@@ -90,7 +90,7 @@ async def upload_images(
     engine: ImaginationEngines = ImaginationEngines.midjourney,
     file_upload_dir="imaginations",
 ):
-    image_name = texttools.sanitize_filename(prompt)
+    image_name = texttools.sanitize_filename(prompt, 40)
 
     uploaded_items = [
         await upload_image(
@@ -118,38 +118,30 @@ async def upload_images(
     return uploaded_items
 
 
+@basic.try_except_wrapper
 async def process_result(imagination: Imagination, generated_url: str):
-    try:
-        # Download the image
-        image_bytes = await aionetwork.aio_request_binary(url=generated_url)
-        images = [Image.open(image_bytes)]
-        file_upload_dir = "imaginations"
+    # Download the image
+    image_bytes = await aionetwork.aio_request_binary(url=generated_url)
+    images = [Image.open(image_bytes)]
+    file_upload_dir = "imaginations"
 
-        # Crop the image into 4 sections for midjourney engine
-        if imagination.engine == ImaginationEngines.midjourney:
-            images = crop_image(images[0], sections=(2, 2))
+    # Crop the image into 4 sections for midjourney engine
+    if imagination.engine == ImaginationEngines.midjourney:
+        images = crop_image(images[0], sections=(2, 2))
 
-        # Upload result images on ufiles
-        uploaded_items = await upload_images(
-            images=images,
-            user_id=imagination.user_id,
-            prompt=imagination.prompt,
-            engine=imagination.engine,
-            file_upload_dir=file_upload_dir,
-        )
+    # Upload result images on ufiles
+    uploaded_items = await upload_images(
+        images=images,
+        user_id=imagination.user_id,
+        prompt=imagination.prompt,
+        engine=imagination.engine,
+        file_upload_dir=file_upload_dir,
+    )
 
-        imagination.results = [
-            ImagineResponse(url=uploaded.url, width=image.width, height=image.height)
-            for uploaded, image in zip(uploaded_items, images)
-        ]
-
-    except Exception as e:
-        import traceback
-
-        traceback_str = "".join(traceback.format_tb(e.__traceback__))
-        logging.error(f"Error processing image: \n{traceback_str}\n{e}")
-
-    return
+    imagination.results = [
+        ImagineResponse(url=uploaded.url, width=image.width, height=image.height)
+        for uploaded, image in zip(uploaded_items, images)
+    ]
 
 
 async def process_imagine_webhook(
@@ -162,7 +154,7 @@ async def process_imagine_webhook(
             f"Error processing image: {json.dumps(data.model_dump(), indent=2, ensure_ascii=False)}"
         )
         await imagination.retry(data.error)
-        return
+        return imagination
 
     if data.status == "completed":
         result_url = (
@@ -294,6 +286,7 @@ async def check_quota(imagination: Imagination | ImaginationBulk):
         raise exceptions.InsufficientFunds(
             f"You have only {quota} coins, while you need {imagination.total_price} coins."
         )
+    return quota
 
 
 async def imagine_request(imagination: Imagination):
@@ -319,10 +312,10 @@ async def imagine_request(imagination: Imagination):
 
         # Request to client or api using Engine classes
         logging.info(
-            f"Requesting {imagination.engine.value} with prompt: {imagination.prompt}"
+            f"imagine request {imagination.engine.value} with prompt: {imagination.prompt}"
         )
         imagine_request = await imagine_engine.imagine(imagination)
-        logging.info(f"Requested {imagination.engine.value}")
+        logging.info(f"imagine requested {imagination.engine.value} is done")
 
         # Store Engine response
         imagination.meta_data = (
@@ -333,11 +326,12 @@ async def imagine_request(imagination: Imagination):
         imagination.task_status = imagine_request.status.task_status
         await imagination.save_report(f"{imagination.engine.value} has been requested.")
 
-        if imagination.engine.core != "dalle":
-            condition = get_condition(imagination.uid)
-            async with condition:
-                await condition.wait()
-            cleanup_condition(imagination.uid)
+        if imagination.engine.core == "dalle":
+            return await check_imagination_status(imagination)
+        condition = get_condition(imagination.uid)
+        async with condition:
+            await condition.wait()
+        cleanup_condition(imagination.uid)
 
         imagination = await Imagination.get_item(imagination.uid, imagination.user_id)
         return imagination
@@ -374,7 +368,7 @@ async def check_imagination_status(imagination: Imagination):
         data = MidjourneyWebhookData(**result.model_dump())
 
     # Process Result
-    await process_imagine_webhook(imagination, data)
+    return await process_imagine_webhook(imagination, data)
 
 
 async def update_imagination_status(imagination: Imagination):
@@ -401,18 +395,7 @@ async def update_imagination_status(imagination: Imagination):
 
 # @basic.try_except_wrapper
 async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
-    quota = await get_quota(imagination_bulk.user_id)
-    if quota is None or imagination_bulk.total_price is None:
-        logging.warning(
-            f"Quota or total_price is None: {imagination_bulk.user_id} {quota} {imagination_bulk.total_price}"
-        )
-
-    elif quota < imagination_bulk.total_price:
-        await imagination_bulk.save_report("Insufficient balance.", log_type="error")
-        raise exceptions.InsufficientFunds(
-            f"You have only {quota} coins, while you need {imagination_bulk.total_price} coins."
-        )
-
+    logging.info(f"imagine_bulk_request")
     imagination_bulk.task_references = TaskReferenceList(
         tasks=[],
         mode="parallel",
@@ -441,6 +424,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     task_items: list[Imagination] = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
+    logging.info(f"start_processing for all imagine")
     await asyncio.gather(*[task.start_processing() for task in task_items])
     imagination_bulk = await ImaginationBulk.get_item(
         imagination_bulk.uid, imagination_bulk.user_id

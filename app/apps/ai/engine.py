@@ -51,7 +51,7 @@ class BaseEngine(metaclass=Singleton):
 
     # Get Result from service(client / API)
     async def result(self, item, **kwargs) -> EnginesResponse:
-        pass
+        return item
 
     # Validate schema
     def validate(self, item) -> tuple[bool, str | None]:
