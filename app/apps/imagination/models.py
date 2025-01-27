@@ -32,6 +32,7 @@ class Imagination(ImagineSchema, OwnedEntity):
 
     async def end_processing(self):
         if self.bulk and self.status.is_done:
+            logging.info(f"end_processing {self.uid} for all imagine {self.bulk}")
             main_task = await ImaginationBulk.get(self.bulk)
             await main_task.end_processing(self)
 
@@ -112,7 +113,7 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
         from .services import imagine_bulk_result
 
         await imagine_bulk_result(self, imagination)
-
+        logging.info(f"end_processing {self.uid} for all imagine {self.bulk}")
     async def completed_tasks(self) -> list[Imagination]:
         return await Imagination.find(
             {

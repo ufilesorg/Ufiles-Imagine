@@ -5,6 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
+from aiocache import cached
 import ufiles
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
@@ -251,6 +252,7 @@ async def meter_cost(imagination: Imagination):
 
 
 @basic.try_except_wrapper
+@cached(ttl=5)
 async def get_quota(user_id: uuid.UUID):
     ufaas_client = AsyncUFaaS(
         ufaas_base_url=Settings.UFAAS_BASE_URL,
@@ -424,8 +426,9 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     task_items: list[Imagination] = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
-    logging.info(f"start_processing for all imagine")
+    logging.info(f"start_processing {imagination_bulk.uid} for all imagine")
     await asyncio.gather(*[task.start_processing() for task in task_items])
+    logging.info(f"start_processing {imagination_bulk.uid} for all imagine is done")
     imagination_bulk = await ImaginationBulk.get_item(
         imagination_bulk.uid, imagination_bulk.user_id
     )
