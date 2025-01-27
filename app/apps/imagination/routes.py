@@ -49,7 +49,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
     ):
         logging.info(f'created')
         item: Imagination = await super().create_item(request, data.model_dump())
-        await check_quota(item)
+        await check_quota(item.user_id, item.total_price)
 
         item.task_status = "init"
         if sync:
@@ -131,7 +131,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
-        await check_quota(item)
+        await check_quota(user_id, item.total_price)
         if sync:
             item = await item.start_processing()
         else:

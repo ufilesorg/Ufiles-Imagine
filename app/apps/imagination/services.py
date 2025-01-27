@@ -280,11 +280,11 @@ async def cancel_usage(imagination: Imagination):
     await ufaas_client.saas.usages.cancel_item(imagination.usage_id)
 
 
-async def check_quota(imagination: Imagination | ImaginationBulk):
-    quota = await get_quota(imagination.user_id)
-    if quota is None or quota < imagination.total_price:
+async def check_quota(user_id: uuid.UUID, coin: float):
+    quota = await get_quota(user_id)
+    if quota is None or quota < coin:
         raise exceptions.InsufficientFunds(
-            f"You have only {quota} coins, while you need {imagination.total_price} coins."
+            f"You have only {quota} coins, while you need {coin} coins."
         )
     return quota
 
