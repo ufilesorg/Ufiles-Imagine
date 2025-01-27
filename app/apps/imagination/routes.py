@@ -52,7 +52,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
 
         item.task_status = "init"
         if sync:
-            await item.start_processing()
+            item = await item.start_processing()
         else:
             background_tasks.add_task(item.start_processing)
         return item

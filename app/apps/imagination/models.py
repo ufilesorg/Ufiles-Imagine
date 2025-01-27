@@ -28,7 +28,7 @@ class Imagination(ImagineSchema, OwnedEntity):
     async def start_processing(self):
         from .services import imagine_request
 
-        await imagine_request(self)
+        return await imagine_request(self)
 
     async def end_processing(self):
         if self.bulk and self.status.is_done:

@@ -13,7 +13,6 @@ class BackgroundRemoval(BackgroundRemovalSchema, OwnedEntity):
 
     @property
     def item_url(self):
-        # TODO: Change to use the business url
         return (
             f"https://{Settings.root_url}/v1/apps/imagine/background-removal/{self.uid}"
         )
@@ -21,7 +20,7 @@ class BackgroundRemoval(BackgroundRemovalSchema, OwnedEntity):
     async def start_processing(self):
         from .services import background_removal_request
 
-        await background_removal_request(self)
+        return await background_removal_request(self)
 
     async def retry(self, message: str, max_retries: int = 5):
         self.meta_data = self.meta_data or {}

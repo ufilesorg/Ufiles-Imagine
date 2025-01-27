@@ -74,7 +74,7 @@ class BackgroundRemovalRouter(
         item: BackgroundRemoval = await super().create_item(request, data.model_dump())
         item.task_status = "init"
         if sync:
-            await item.start_processing()
+            item = await item.start_processing()
         else:
             background_tasks.add_task(item.start_processing)
 
@@ -86,6 +86,9 @@ class BackgroundRemovalRouter(
         uid: uuid.UUID,
         data: BackgroundRemovalWebhookData,
     ):
+        import logging
+
+        logging.info(f"Background removal webhook received: {uid}")
         item: BackgroundRemoval = await self.get_item(uid, user_id=None)
         if item.status == "cancelled":
             return {"message": "BackgroundRemoval has been cancelled."}

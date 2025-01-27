@@ -11,18 +11,19 @@ from .schemas import ImaginationStatus
 
 class ReplicateDetails(EnginesResponse):
     input: dict[str, Any]
-    model: Literal[
-        "ideogram-ai/ideogram-v2-turbo",
-        "ideogram-ai/ideogram-v2",
-        "black-forest-labs/flux-schnell",
-        "black-forest-labs/flux-1.1-pro",
-        "stability-ai/stable-diffusion-3",
-        "cjwbw/rembg",
-        "lucataco/remove-bg",
-        "pollinations/modnet",
-        "luma/photon",
-        "luma/photon-flash",
-    ] = "ideogram-ai/ideogram-v2-turbo"
+    model: str = "ideogram-ai/ideogram-v2-turbo"
+    # Literal[
+    #     "ideogram-ai/ideogram-v2-turbo",
+    #     "ideogram-ai/ideogram-v2",
+    #     "black-forest-labs/flux-schnell",
+    #     "black-forest-labs/flux-1.1-pro",
+    #     "stability-ai/stable-diffusion-3",
+    #     "cjwbw/rembg",
+    #     "lucataco/remove-bg",
+    #     "pollinations/modnet",
+    #     "luma/photon",
+    #     "luma/photon-flash",
+    # ]
 
 
 class Replicate(BaseEngine):
@@ -66,7 +67,9 @@ class Replicate(BaseEngine):
         return await self._result_to_details(prediction, imagination)
 
     async def _result_to_details(
-        self, prediction: replicate.prediction.Prediction, imagination: ImagineSchema
+        self,
+        prediction: replicate.prediction.Prediction,
+        imagination: ImagineSchema | None = None,
     ):
         prediction_data = prediction.__dict__.copy()
         prediction_data.pop("status", None)

@@ -337,6 +337,7 @@ async def imagine_request(imagination: Imagination):
 
         if imagination.engine.core == "dalle":
             return await process_imagine_webhook(imagination, imagine_request)
+
         condition = get_condition(imagination.uid)
         async with condition:
             await condition.wait()
@@ -358,6 +359,7 @@ async def imagine_request(imagination: Imagination):
         await release_condition(imagination.uid)
 
         await imagination.fail(str(e))
+        return imagination
 
 
 async def check_imagination_status(imagination: Imagination):

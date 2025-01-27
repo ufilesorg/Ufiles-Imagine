@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import uuid
+from io import BytesIO
 
 import ufiles
 from apps.imagination.schemas import ImagineResponse
@@ -10,6 +12,28 @@ from server.config import Settings
 
 from .models import BackgroundRemoval
 from .schemas import BackgroundRemovalEngines, BackgroundRemovalWebhookData
+
+_background_removal_conditions: dict[uuid.UUID, asyncio.Condition] = {}
+
+
+def get_condition(imagination_id: uuid.UUID) -> asyncio.Condition:
+    """Get or create condition for an imagination"""
+    if imagination_id not in _background_removal_conditions:
+        _background_removal_conditions[imagination_id] = asyncio.Condition()
+    return _background_removal_conditions[imagination_id]
+
+
+def cleanup_condition(imagination_id: uuid.UUID):
+    """Remove condition when imagination is complete"""
+    if imagination_id in _background_removal_conditions:
+        del _background_removal_conditions[imagination_id]
+
+
+async def release_condition(imagination_id: uuid.UUID):
+    condition = get_condition(imagination_id)
+    async with condition:
+        condition.notify_all()
+    cleanup_condition(imagination_id)
 
 
 async def upload_image(
@@ -24,7 +48,7 @@ async def upload_image(
         usso_base_url=Settings.USSO_BASE_URL,
         api_key=Settings.UFILES_API_KEY,
     )
-    image_bytes = imagetools.convert_format_bytes(image, convert_format="webp")
+    image_bytes: BytesIO = imagetools.convert_image_bytes(image, format="webp")
     image_bytes.name = f"{image_name}.webp"
     return await ufiles_client.upload_bytes(
         image_bytes,
@@ -39,30 +63,24 @@ async def upload_image(
     )
 
 
+@basic.try_except_wrapper
 async def process_result(background_removal: BackgroundRemoval, generated_url: str):
-    try:
-        # Download the image
-        image_bytes = await aionetwork.aio_request_binary(url=generated_url)
-        image = Image.open(image_bytes)
-        uploaded_item = await upload_image(
-            image,
-            image_name=f"bg_{image.filename}",
-            user_id=background_removal.user_id,
-            engine=background_removal.engine,
-            file_upload_dir="backgrounds_removal",
-        )
+    # Download the image
+    image_bytes = await aionetwork.aio_request_binary(url=generated_url)
+    image = Image.open(image_bytes)
+    uploaded_item = await upload_image(
+        image,
+        image_name=f"bg_{image.filename}",
+        user_id=background_removal.user_id,
+        engine=background_removal.engine,
+        file_upload_dir="backgrounds_removal",
+    )
 
-        background_removal.result = ImagineResponse(
-            url=uploaded_item.url,
-            width=image.width,
-            height=image.height,
-        )
-
-    except Exception as e:
-        import traceback
-
-        traceback_str = "".join(traceback.format_tb(e.__traceback__))
-        logging.error(f"Error processing image: {e}\n{traceback_str}")
+    return ImagineResponse(
+        url=uploaded_item.url,
+        width=image.width,
+        height=image.height,
+    )
 
 
 async def process_background_removal_webhook(
@@ -73,8 +91,9 @@ async def process_background_removal_webhook(
         return
 
     if data.status == "completed":
-        result_url = (data.result or {}).get("uri")
-        await process_result(background_removal, result_url)
+        result_url = data.output
+        background_removal.result = await process_result(background_removal, result_url)
+        await background_removal.save()
 
     background_removal.task_progress = data.percentage
     background_removal.task_status = background_removal.status.task_status
@@ -87,16 +106,23 @@ async def process_background_removal_webhook(
 
     await background_removal.save_report(report)
 
+    logging.info(f"Background removal finished: {background_removal.uid} {data.status} {background_removal.result} {report}")
+
+    if data.status == "completed":
+        await release_condition(background_removal.uid)
+
 
 @basic.try_except_wrapper
 async def background_removal_request(background_removal: BackgroundRemoval):
     # Get Engine class and validate it
-    Item = background_removal.engine.get_class(background_removal)
-    if Item is None:
+    BGEngineClass = background_removal.engine.get_class(background_removal)
+    if BGEngineClass is None:
         raise NotImplementedError(
             "The supported engines are Replicate, Replicate and Dalle."
         )
-    mid_request = await Item._request(callback=background_removal.item_webhook_url)
+    mid_request = await BGEngineClass._request(
+        callback=background_removal.item_webhook_url
+    )
 
     # Store Engine response
     background_removal.meta_data = (
@@ -104,26 +130,12 @@ async def background_removal_request(background_removal: BackgroundRemoval):
     ) | mid_request.model_dump()
     await background_removal.save_report(f"Replicate has been requested.")
 
-    # Create Short Polling process know the status of the request
-    return await background_removal_update(background_removal)
+    condition = get_condition(background_removal.uid)
+    async with condition:
+        await condition.wait()
+    cleanup_condition(background_removal.uid)
 
+    background_removal = await BackgroundRemoval.get_item(background_removal.uid, background_removal.user_id)
 
-@basic.try_except_wrapper
-@basic.delay_execution(Settings.update_time)
-async def background_removal_update(background_removal: BackgroundRemoval, i=0):
-    # Stop Short polling when the request is finished
-    if background_removal.status.is_done:
-        return
-
-    Item = background_removal.engine.get_class(background_removal)
-
-    # Get Result from service by engine class
-    # And Update background_removal status
-    result = await Item.result()
-    background_removal.status = result.status
-
-    # Process Result
-    await process_background_removal_webhook(
-        background_removal, BackgroundRemovalWebhookData(**result.model_dump())
-    )
-    return await background_removal_update(background_removal, i + 1)
+    logging.info(f"Background removal finished: {background_removal.uid} {background_removal.result}")
+    return background_removal

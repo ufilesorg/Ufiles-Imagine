@@ -1,10 +1,11 @@
 from enum import Enum
 from typing import Any
 
+from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.schemas import ImaginationStatus, ImagineResponse
 from fastapi_mongo_base.schemas import OwnedEntitySchema
 from fastapi_mongo_base.tasks import TaskMixin
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 
 class BackgroundRemovalEngines(str, Enum):
@@ -13,17 +14,21 @@ class BackgroundRemovalEngines(str, Enum):
     pollinations = "pollinations"
 
     def get_class(self, background_removal: Any):
-        from .ai import ReplicateBackgroundRemoval
+        from .ai import (
+            CjwbwReplicateBackgroundRemoval,
+            LucatacoReplicateBackgroundRemoval,
+            PollinationsReplicateBackgroundRemoval,
+        )
 
         return {
-            BackgroundRemovalEngines.cjwbw: lambda: ReplicateBackgroundRemoval(
-                background_removal, self.value
+            BackgroundRemovalEngines.cjwbw: lambda: CjwbwReplicateBackgroundRemoval(
+                background_removal
             ),
-            BackgroundRemovalEngines.lucataco: lambda: ReplicateBackgroundRemoval(
-                background_removal, self.value
+            BackgroundRemovalEngines.lucataco: lambda: LucatacoReplicateBackgroundRemoval(
+                background_removal
             ),
-            BackgroundRemovalEngines.pollinations: lambda: ReplicateBackgroundRemoval(
-                background_removal, self.value
+            BackgroundRemovalEngines.pollinations: lambda: PollinationsReplicateBackgroundRemoval(
+                background_removal
             ),
         }[self]()
 
@@ -41,7 +46,7 @@ class BackgroundRemovalEngines(str, Enum):
 
 
 class BackgroundRemovalEnginesSchema(BaseModel):
-    engine: BackgroundRemovalEngines = BackgroundRemovalEngines.cjwbw
+    engine: BackgroundRemovalEngines = BackgroundRemovalEngines.lucataco
     thumbnail_url: str
     price: float
 
@@ -51,31 +56,16 @@ class BackgroundRemovalEnginesSchema(BaseModel):
 
 
 class BackgroundRemovalCreateSchema(BaseModel):
-    # engine: BackgroundRemovalEngines = BackgroundRemovalEngines.cjwbw
+    engine: BackgroundRemovalEngines = BackgroundRemovalEngines.lucataco
     image_url: str
 
 
-class BackgroundRemovalSchema(TaskMixin, OwnedEntitySchema):
-    engine: BackgroundRemovalEngines = BackgroundRemovalEngines.cjwbw
-    image_url: str | None = None
+class BackgroundRemovalSchema(
+    BackgroundRemovalCreateSchema, TaskMixin, OwnedEntitySchema
+):
     status: ImaginationStatus = ImaginationStatus.draft
     result: ImagineResponse | None = None
 
 
-class BackgroundRemovalWebhookData(BaseModel):
-    status: ImaginationStatus
-    percentage: int
-    result: dict[str, Any] | None = None
-    error: Any | None = None
-
-    @field_validator("percentage", mode="before")
-    def validate_percentage(cls, value):
-        if value is None:
-            return -1
-        if isinstance(value, str):
-            return int(value.replace("%", ""))
-        if value < -1:
-            return -1
-        if value > 100:
-            return 100
-        return value
+class BackgroundRemovalWebhookData(PredictionModelWebhookData):
+    pass
