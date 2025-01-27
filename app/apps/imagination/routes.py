@@ -123,7 +123,6 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
     ):
         logging.info(f'created')
         user_id = await self.get_user_id(request)
-        await check_quota(data)
         item: ImaginationBulk = await ImaginationBulk.create_item(
             {
                 "user_id": user_id,
@@ -132,6 +131,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
+        await check_quota(item)
         if sync:
             item = await item.start_processing()
         else:
