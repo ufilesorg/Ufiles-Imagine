@@ -1,5 +1,6 @@
 import replicate
 import replicate.prediction
+
 from apps.ai.replicate_engine import Replicate, ReplicateDetails
 
 

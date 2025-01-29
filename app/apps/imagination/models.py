@@ -1,9 +1,11 @@
 import asyncio
 import logging
+from bson import UUID_SUBTYPE, Binary, ObjectId
 
 from fastapi_mongo_base.models import OwnedEntity
 from fastapi_mongo_base.tasks import TaskStatusEnum
 from fastapi_mongo_base.utils.basic import try_except_wrapper
+
 from server.config import Settings
 
 from .schemas import (
@@ -31,6 +33,7 @@ class Imagination(ImagineSchema, OwnedEntity):
         return await imagine_request(self)
 
     async def end_processing(self):
+        return
         if self.bulk and self.status.is_done:
             logging.info(f"end_processing {self.uid} for all imagine {self.bulk}")
             main_task = await ImaginationBulk.get(self.bulk)
@@ -64,6 +67,7 @@ class Imagination(ImagineSchema, OwnedEntity):
         )
         await self.save_and_emit()
         await cancel_usage(self)
+        return
         if self.bulk:
             main_task = await ImaginationBulk.get(self.bulk)
             await main_task.fail()
@@ -84,6 +88,36 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
     @property
     def item_url(self):
         return f"https://{Settings.root_url}{Settings.base_path}/imagination/bulk/{self.uid}"
+
+    @classmethod
+    async def get_item(cls, uid, user_id, *args, **kwargs) -> "ImaginationBulk":
+        uid = Binary.from_uuid(uid, UUID_SUBTYPE)
+        user_id = Binary.from_uuid(user_id, UUID_SUBTYPE)
+        # oid = ObjectId("6753f48dfd1306dbcb91604a")
+
+        result = await ImaginationBulk.aggregate(
+            [
+                {"$match": {"uid": uid, "user_id": user_id}},  # Match the specific ImagineBulkSchema by its ID
+                {
+                    "$lookup": {
+                        "from": "Imagination",  # The collection name of ImagineSchema
+                        "localField": "uid",  # The field in ImagineBulkSchema
+                        "foreignField": "bulk",  # The field in ImagineSchema that references the bulk ID
+                        "as": "child",  # The resulting array of related ImagineSchema entries
+                    }
+                },
+            ]
+        ).to_list()
+        bulk = ImaginationBulk(**result[0])
+        bulk.results = [
+            ImagineBulkResponse(engine=imagine_dict["engine"], **imagine_result)
+            for imagine_dict in result[0]["child"]
+            if imagine_dict is not None
+            for imagine_result in imagine_dict["results"]
+            if imagine_result is not None
+        ]
+
+        return bulk
 
     async def start_processing(self):
         from .services import imagine_bulk_request

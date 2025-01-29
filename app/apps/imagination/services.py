@@ -9,6 +9,12 @@ from io import BytesIO
 import httpx
 import ufiles
 from aiocache import cached
+from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
+from fastapi_mongo_base.utils import basic, imagetools, texttools
+from PIL import Image
+from ufaas import AsyncUFaaS, exceptions
+from ufaas.apps.saas.schemas import UsageCreateSchema
+
 from apps.ai.engine import EnginesResponse
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
@@ -19,12 +25,7 @@ from apps.imagination.schemas import (
     ImagineSchema,
     MidjourneyWebhookData,
 )
-from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
-from fastapi_mongo_base.utils import basic, imagetools, texttools
-from PIL import Image
 from server.config import Settings
-from ufaas import AsyncUFaaS, exceptions
-from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai
 
 # Store conditions for active imaginations
@@ -189,9 +190,9 @@ async def process_imagine_webhook(
         else 100
     )
     imagination.task_status = data.status.task_status
-    logging.info(
-        f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_imagination_conditions)=} {type(data).__name__=}"
-    )
+    # logging.info(
+    #     f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_imagination_conditions)=} {type(data).__name__=}"
+    # )
 
     report = (
         f"{imagination.engine.value} completed."
@@ -417,7 +418,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         imagine = await Imagination.create_item(
             ImagineSchema(
                 user_id=imagination_bulk.user_id,
-                bulk=str(imagination_bulk.id),
+                bulk=imagination_bulk.uid,
                 engine=engine,
                 prompt=imagination_bulk.prompt,
                 # delineation=imagination_bulk.delineation,
@@ -436,6 +437,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     task_items: list[Imagination] = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
+    logging.info(f"Bulk task items: {len(task_items)}")
     await asyncio.gather(*[task.start_processing() for task in task_items])
     imagination_bulk = await ImaginationBulk.get_item(
         imagination_bulk.uid, imagination_bulk.user_id

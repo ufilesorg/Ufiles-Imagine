@@ -5,9 +5,10 @@ import uuid
 from io import BytesIO
 
 import ufiles
-from apps.imagination.schemas import ImagineResponse
 from fastapi_mongo_base.utils import aionetwork, basic, imagetools
 from PIL import Image
+
+from apps.imagination.schemas import ImagineResponse
 from server.config import Settings
 
 from .models import BackgroundRemoval
@@ -106,7 +107,9 @@ async def process_background_removal_webhook(
 
     await background_removal.save_report(report)
 
-    logging.info(f"Background removal finished: {background_removal.uid} {data.status} {background_removal.result} {report}")
+    logging.info(
+        f"Background removal finished: {background_removal.uid} {data.status} {background_removal.result} {report}"
+    )
 
     if data.status == "completed":
         await release_condition(background_removal.uid)
@@ -135,7 +138,11 @@ async def background_removal_request(background_removal: BackgroundRemoval):
         await condition.wait()
     cleanup_condition(background_removal.uid)
 
-    background_removal = await BackgroundRemoval.get_item(background_removal.uid, background_removal.user_id)
+    background_removal = await BackgroundRemoval.get_item(
+        background_removal.uid, background_removal.user_id
+    )
 
-    logging.info(f"Background removal finished: {background_removal.uid} {background_removal.result}")
+    logging.info(
+        f"Background removal finished: {background_removal.uid} {background_removal.result}"
+    )
     return background_removal

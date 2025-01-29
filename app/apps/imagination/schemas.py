@@ -3,11 +3,12 @@ import uuid
 from datetime import datetime
 from typing import Any, Generator
 
-from apps.ai.engine import ImaginationEngines
-from apps.ai.schemas import ImaginationStatus
 from fastapi_mongo_base.schemas import OwnedEntitySchema
 from fastapi_mongo_base.tasks import TaskMixin
 from pydantic import BaseModel, field_validator, model_validator
+
+from apps.ai.engine import ImaginationEngines
+from apps.ai.schemas import ImaginationStatus
 
 
 class ImagineCreateSchema(BaseModel):
@@ -38,7 +39,7 @@ class ImagineSchema(ImagineCreateSchema, TaskMixin, OwnedEntitySchema):
     prompt: str | None = None
     error: Any | None = None
 
-    bulk: str | None = None
+    bulk: str | uuid.UUID | None = None
     status: ImaginationStatus = ImaginationStatus.init
     results: list[ImagineResponse] | None = None
     usage_id: uuid.UUID | None = None

@@ -1,7 +1,8 @@
+from fastapi_mongo_base.core import app_factory
+
 from apps.background_removal.routes import router as background_removal_router
 from apps.imagination.routes import bulk_router
 from apps.imagination.routes import router as imagination_router
-from fastapi_mongo_base.core import app_factory
 
 from . import config, worker
 

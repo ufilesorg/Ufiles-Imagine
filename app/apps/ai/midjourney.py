@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+
 from apps.imagination.schemas import ImagineSchema
 from server.config import Settings
 
