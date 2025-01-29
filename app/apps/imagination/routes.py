@@ -20,7 +20,8 @@ from .schemas import (
     ImagineSchema,
     MidjourneyWebhookData,
 )
-from .services import check_quota, process_imagine_webhook
+from .services import process_imagine_webhook
+from utils import finance
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
@@ -50,7 +51,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         sync: bool = False,
     ):
         item: Imagination = await super().create_item(request, data.model_dump())
-        await check_quota(item.user_id, item.total_price)
+        await finance.check_quota(item.user_id, item.total_price)
 
         item.task_status = "init"
         if sync:
@@ -119,7 +120,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
                 "total_tasks": len([d for d in data.get_combinations()]),
             }
         )
-        await check_quota(user_id, item.total_price)
+        await finance.check_quota(user_id, item.total_price)
 
         if sync:
             item = await item.start_processing()
