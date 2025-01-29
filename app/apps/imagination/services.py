@@ -1,12 +1,9 @@
 import asyncio
-import json
 import logging
-import uuid
 from datetime import datetime, timedelta
 from io import BytesIO
 
 import httpx
-import ufiles
 from apps.ai.engine import EnginesResponse
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
@@ -18,98 +15,9 @@ from apps.imagination.schemas import (
     MidjourneyWebhookData,
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
-from fastapi_mongo_base.utils import basic, imagetools, texttools
+from fastapi_mongo_base.utils import basic, conditions, imagetools
 from PIL import Image
-from server.config import Settings
-from singleton import Singleton
-from utils import ai, finance
-
-
-class ImaginationConditions(metaclass=Singleton):
-    _imagination_conditions: dict[uuid.UUID, asyncio.Condition] = {}
-
-    def get_condition(self, imagination_id: uuid.UUID) -> asyncio.Condition:
-        """Get or create condition for an imagination"""
-        if imagination_id not in self._imagination_conditions:
-            self._imagination_conditions[imagination_id] = asyncio.Condition()
-        return self._imagination_conditions[imagination_id]
-
-    def cleanup_condition(self, imagination_id: uuid.UUID):
-        self._imagination_conditions.pop(imagination_id, None)
-
-    async def release_condition(self, imagination_id: uuid.UUID):
-        if imagination_id not in self._imagination_conditions:
-            return
-
-        condition = self.get_condition(imagination_id)
-        async with condition:
-            condition.notify_all()
-        self.cleanup_condition(imagination_id)
-
-    async def wait_condition(self, imagination_id: uuid.UUID):
-        condition = self.get_condition(imagination_id)
-        async with condition:
-            await condition.wait()
-        self.cleanup_condition(imagination_id)
-
-
-async def upload_image(
-    image: Image.Image,
-    image_name: str,
-    user_id: uuid.UUID,
-    prompt: str,
-    engine: ImaginationEngines = ImaginationEngines.midjourney,
-    file_upload_dir: str = "imaginations",
-):
-    ufiles_client = ufiles.AsyncUFiles(
-        ufiles_base_url=Settings.UFILES_BASE_URL,
-        usso_base_url=Settings.USSO_BASE_URL,
-        api_key=Settings.UFILES_API_KEY,
-    )
-    image_bytes = imagetools.convert_image_bytes(image, format="JPEG", quality=90)
-    image_bytes.name = f"{engine.value}_{image_name}.jpg"
-    return await ufiles_client.upload_bytes(
-        image_bytes,
-        filename=f"{file_upload_dir}/{image_bytes.name}",
-        public_permission=json.dumps({"permission": ufiles.PermissionEnum.READ}),
-        user_id=str(user_id),
-        meta_data={"prompt": prompt, "engine": engine.value},
-    )
-
-
-async def upload_images(
-    images: list[Image.Image],
-    user_id: uuid.UUID,
-    prompt: str,
-    engine: ImaginationEngines = ImaginationEngines.midjourney,
-    file_upload_dir="imaginations",
-):
-    image_name = texttools.sanitize_filename(prompt, 40)
-
-    uploaded_items = [
-        await upload_image(
-            images[0],
-            image_name=f"{image_name}_{1}",
-            user_id=user_id,
-            prompt=prompt,
-            engine=engine,
-            file_upload_dir=file_upload_dir,
-        )
-    ]
-    uploaded_items += await asyncio.gather(
-        *[
-            upload_image(
-                image,
-                image_name=f"{image_name}_{i+2}",
-                user_id=user_id,
-                prompt=prompt,
-                engine=engine,
-                file_upload_dir=file_upload_dir,
-            )
-            for i, image in enumerate(images[1:])
-        ]
-    )
-    return uploaded_items
+from utils import ai, finance, media
 
 
 @basic.try_except_wrapper
@@ -127,7 +35,7 @@ async def process_result(imagination: Imagination, generated_url: str):
         images = imagetools.split_image(images[0], sections=(2, 2))
 
     # Upload result images on ufiles
-    uploaded_items = await upload_images(
+    uploaded_items = await media.upload_images(
         images=images,
         user_id=imagination.user_id,
         prompt=imagination.prompt,
@@ -170,7 +78,7 @@ async def process_imagine_webhook(
             await process_result(imagination, url)
 
         # Add condition notification with logging
-        await ImaginationConditions().release_condition(imagination.uid)
+        await conditions.Conditions().release_condition(imagination.uid)
 
     imagination.task_progress = (
         getattr(data, "percentage", data.status.progress)
@@ -179,7 +87,7 @@ async def process_imagine_webhook(
     )
     imagination.task_status = data.status.task_status
     # logging.info(
-    #     f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_imagination_conditions)=} {type(data).__name__=}"
+    #     f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_conditions)=} {type(data).__name__=}"
     # )
 
     report = (
@@ -203,7 +111,7 @@ async def process_imagine_webhook(
         await imagination.fail(
             f"{imagination.engine.value} service didn't respond in time."
         )
-        await ImaginationConditions().release_condition(imagination.uid)
+        await conditions.Conditions().release_condition(imagination.uid)
 
 
 async def create_prompt(imagination: Imagination | ImaginationBulk):
@@ -267,7 +175,7 @@ async def imagine_request(imagination: Imagination, **kwargs):
             return await process_imagine_webhook(imagination, imagine_request)
 
         if kwargs.get("sync", False):
-            await ImaginationConditions().wait_condition(imagination.uid)
+            await conditions.Conditions().wait_condition(imagination.uid)
 
         imagination = await Imagination.get_item(imagination.uid, imagination.user_id)
         return imagination
@@ -281,7 +189,7 @@ async def imagine_request(imagination: Imagination, **kwargs):
         imagination.status = ImaginationStatus.error
         imagination.task_status = ImaginationStatus.error
         imagination.error = str(e)
-        await ImaginationConditions().release_condition(imagination.uid)
+        await conditions.Conditions().release_condition(imagination.uid)
 
         await imagination.fail(str(e))
         return imagination
@@ -315,7 +223,7 @@ async def update_imagination_status(imagination: Imagination):
 
         # If status is done, notify with logging
         if imagination.status.is_done:
-            await ImaginationConditions().release_condition(imagination.uid)
+            await conditions.Conditions().release_condition(imagination.uid)
 
     except Exception as e:
         import traceback
@@ -326,7 +234,7 @@ async def update_imagination_status(imagination: Imagination):
         imagination.status = ImaginationStatus.error
         imagination.task_status = ImaginationStatus.error
         imagination.error = str(e)
-        await ImaginationConditions().release_condition(imagination.uid)
+        await conditions.Conditions().release_condition(imagination.uid)
 
         await imagination.fail(str(e))
 
