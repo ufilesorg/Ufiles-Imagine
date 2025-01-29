@@ -10,6 +10,7 @@ from fastapi_mongo_base.core.exceptions import BaseHTTPException
 from fastapi_mongo_base.routes import AbstractBaseRouter
 from fastapi_mongo_base.tasks import TaskStatusEnum
 from usso.fastapi import jwt_access_security
+from utils import finance
 
 from .models import Imagination, ImaginationBulk
 from .schemas import (
@@ -21,7 +22,6 @@ from .schemas import (
     MidjourneyWebhookData,
 )
 from .services import process_imagine_webhook
-from utils import finance
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
@@ -158,6 +158,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         item = await self.retrieve_item(request, uid)
         await process_imagine_bulk_webhook(item, data)
         return {}
+
 
 router = ImaginationRouter().router
 bulk_router = ImaginationBulkRouter().router

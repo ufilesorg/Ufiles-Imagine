@@ -7,7 +7,6 @@ from io import BytesIO
 
 import httpx
 import ufiles
-from aiocache import cached
 from apps.ai.engine import EnginesResponse
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
@@ -23,8 +22,6 @@ from fastapi_mongo_base.utils import basic, imagetools, texttools
 from PIL import Image
 from server.config import Settings
 from singleton import Singleton
-from ufaas import AsyncUFaaS, exceptions
-from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai, finance
 
 
@@ -231,7 +228,6 @@ async def create_prompt(imagination: Imagination | ImaginationBulk):
     prompt = prompt.strip(",. ")
 
     return prompt
-
 
 
 async def imagine_request(imagination: Imagination, **kwargs):
