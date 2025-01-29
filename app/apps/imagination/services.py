@@ -1,5 +1,4 @@
 import asyncio
-import itertools
 import json
 import logging
 import uuid
@@ -23,44 +22,38 @@ from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatu
 from fastapi_mongo_base.utils import basic, imagetools, texttools
 from PIL import Image
 from server.config import Settings
+from singleton import Singleton
 from ufaas import AsyncUFaaS, exceptions
 from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai
 
-# Store conditions for active imaginations
-_imagination_conditions: dict[uuid.UUID, asyncio.Condition] = {}
 
+class ImaginationConditions(metaclass=Singleton):
+    _imagination_conditions: dict[uuid.UUID, asyncio.Condition] = {}
 
-def get_condition(imagination_id: uuid.UUID) -> asyncio.Condition:
-    """Get or create condition for an imagination"""
-    if imagination_id not in _imagination_conditions:
-        _imagination_conditions[imagination_id] = asyncio.Condition()
-    return _imagination_conditions[imagination_id]
+    def get_condition(self, imagination_id: uuid.UUID) -> asyncio.Condition:
+        """Get or create condition for an imagination"""
+        if imagination_id not in self._imagination_conditions:
+            self._imagination_conditions[imagination_id] = asyncio.Condition()
+        return self._imagination_conditions[imagination_id]
 
+    def cleanup_condition(self, imagination_id: uuid.UUID):
+        self._imagination_conditions.pop(imagination_id, None)
 
-def cleanup_condition(imagination_id: uuid.UUID):
-    """Remove condition when imagination is complete"""
-    if imagination_id in _imagination_conditions:
-        del _imagination_conditions[imagination_id]
+    async def release_condition(self, imagination_id: uuid.UUID):
+        if imagination_id not in self._imagination_conditions:
+            return
 
+        condition = self.get_condition(imagination_id)
+        async with condition:
+            condition.notify_all()
+        self.cleanup_condition(imagination_id)
 
-async def release_condition(imagination_id: uuid.UUID):
-    condition = get_condition(imagination_id)
-    async with condition:
-        condition.notify_all()
-    cleanup_condition(imagination_id)
-
-
-def crop_image(image: Image.Image, sections=(2, 2), **kwargs) -> list[Image.Image]:
-    parts = []
-    for i, j in itertools.product(range(sections[0]), range(sections[1])):
-        x = j * image.width // sections[0]
-        y = i * image.height // sections[1]
-        region = image.crop(
-            (x, y, x + image.width // sections[0], y + image.height // sections[1])
-        )
-        parts.append(region)
-    return parts
+    async def wait_condition(self, imagination_id: uuid.UUID):
+        condition = self.get_condition(imagination_id)
+        async with condition:
+            await condition.wait()
+        self.cleanup_condition(imagination_id)
 
 
 async def upload_image(
@@ -134,7 +127,7 @@ async def process_result(imagination: Imagination, generated_url: str):
 
     # Crop the image into 4 sections for midjourney engine
     if imagination.engine == ImaginationEngines.midjourney:
-        images = crop_image(images[0], sections=(2, 2))
+        images = imagetools.split_image(images[0], sections=(2, 2))
 
     # Upload result images on ufiles
     uploaded_items = await upload_images(
@@ -178,9 +171,9 @@ async def process_imagine_webhook(
             result_url = [result_url]
         for url in result_url:
             await process_result(imagination, url)
-        
+
         # Add condition notification with logging
-        await release_condition(imagination.uid)
+        await ImaginationConditions().release_condition(imagination.uid)
 
     imagination.task_progress = (
         getattr(data, "percentage", data.status.progress)
@@ -213,7 +206,7 @@ async def process_imagine_webhook(
         await imagination.fail(
             f"{imagination.engine.value} service didn't respond in time."
         )
-        await release_condition(imagination.uid)
+        await ImaginationConditions().release_condition(imagination.uid)
 
 
 async def create_prompt(imagination: Imagination | ImaginationBulk):
@@ -301,7 +294,7 @@ async def check_quota(user_id: uuid.UUID, coin: float):
     return quota
 
 
-async def imagine_request(imagination: Imagination):
+async def imagine_request(imagination: Imagination, **kwargs):
     try:
         # Get Engine class and validate it
         imagine_engine = imagination.engine.get_class()
@@ -337,10 +330,8 @@ async def imagine_request(imagination: Imagination):
         if imagination.engine.core == "dalle":
             return await process_imagine_webhook(imagination, imagine_request)
 
-        condition = get_condition(imagination.uid)
-        async with condition:
-            await condition.wait()
-        cleanup_condition(imagination.uid)
+        if kwargs.get("sync", False):
+            await ImaginationConditions().wait_condition(imagination.uid)
 
         imagination = await Imagination.get_item(imagination.uid, imagination.user_id)
         return imagination
@@ -354,8 +345,7 @@ async def imagine_request(imagination: Imagination):
         imagination.status = ImaginationStatus.error
         imagination.task_status = ImaginationStatus.error
         imagination.error = str(e)
-        condition = get_condition(imagination.uid)
-        await release_condition(imagination.uid)
+        await ImaginationConditions().release_condition(imagination.uid)
 
         await imagination.fail(str(e))
         return imagination
@@ -389,7 +379,7 @@ async def update_imagination_status(imagination: Imagination):
 
         # If status is done, notify with logging
         if imagination.status.is_done:
-            await release_condition(imagination.uid)
+            await ImaginationConditions().release_condition(imagination.uid)
 
     except Exception as e:
         import traceback
@@ -400,7 +390,7 @@ async def update_imagination_status(imagination: Imagination):
         imagination.status = ImaginationStatus.error
         imagination.task_status = ImaginationStatus.error
         imagination.error = str(e)
-        await release_condition(imagination.uid)
+        await ImaginationConditions().release_condition(imagination.uid)
 
         await imagination.fail(str(e))
 
@@ -419,8 +409,8 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
                 bulk=imagination_bulk.uid,
                 engine=engine,
                 prompt=imagination_bulk.prompt,
-                # delineation=imagination_bulk.delineation,
-                # context=imagination_bulk.context,
+                delineation=imagination_bulk.delineation,
+                context=imagination_bulk.context,
                 aspect_ratio=aspect_ratio,
                 mode="imagine",
                 webhook_url=imagination_bulk.webhook_url,
@@ -436,45 +426,10 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
     logging.info(f"Bulk task items: {len(task_items)}")
-    await asyncio.gather(*[task.start_processing() for task in task_items])
+    await asyncio.gather(*[task.start_processing(sync=True) for task in task_items])
     imagination_bulk = await ImaginationBulk.get_item(
         imagination_bulk.uid, imagination_bulk.user_id
     )
     imagination_bulk.task_status = TaskStatusEnum.completed
     await imagination_bulk.save_report(f"Bulk Imagination completed.")
     return imagination_bulk
-
-
-@basic.try_except_wrapper
-async def imagine_bulk_result(
-    imagination_bulk: ImaginationBulk, imagination: Imagination
-):
-    await imagination.save()
-    completed_tasks = await imagination_bulk.completed_tasks()
-    imagination_bulk.results = await imagination_bulk.collect_results()
-
-    # imagination_bulk.total_completed += 1
-    imagination_bulk.total_completed = len(completed_tasks)
-    await imagination_bulk.save_report(f"Engine {imagination.engine.value} is ended.")
-    await imagine_bulk_process(imagination_bulk)
-
-
-@basic.try_except_wrapper
-async def imagine_bulk_process(imagination_bulk: ImaginationBulk):
-    failed_tasks = await imagination_bulk.failed_tasks()
-    completed_tasks = await imagination_bulk.completed_tasks()
-    if len(failed_tasks) + len(completed_tasks) != imagination_bulk.total_tasks:
-        return
-
-    imagination_bulk.task_status = (
-        TaskStatusEnum.error
-        if len(failed_tasks) == imagination_bulk.total_tasks
-        else TaskStatusEnum.completed
-    )
-    if imagination_bulk.task_status == TaskStatusEnum.completed:
-        imagination_bulk.completed_at = datetime.now()
-        await imagination_bulk.save_report(f"Bulk task is completed.")
-        return
-
-    fail_message = failed_tasks[0].task_report
-    await imagination_bulk.save_report(str(fail_message))

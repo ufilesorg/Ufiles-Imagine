@@ -1,5 +1,5 @@
-import time
 import logging
+import time
 import uuid
 
 import fastapi
@@ -13,6 +13,7 @@ from usso.fastapi import jwt_access_security
 
 from .models import Imagination, ImaginationBulk
 from .schemas import (
+    ImagineBulkResponseSchema,
     ImagineBulkSchema,
     ImagineCreateBulkSchema,
     ImagineCreateSchema,
@@ -53,7 +54,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
 
         item.task_status = "init"
         if sync:
-            item = await item.start_processing()
+            item = await item.start_processing(sync=sync)
         else:
             background_tasks.add_task(item.start_processing)
         return item
@@ -87,34 +88,21 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
             prefix="/imagination/bulk",
             tags=["Imagination"],
         )
+        self.router.add_api_route(
+            "/{uid:uuid}/webhook",
+            self.webhook,
+            methods=["POST"],
+            status_code=200,
+        )
 
     def config_schemas(self, schema, **kwargs):
         super().config_schemas(schema, **kwargs)
-        # self.create_request_schema = ImagineCreateBulkSchema
+        self.create_response_schema = ImagineBulkResponseSchema
 
     def config_routes(self, **kwargs):
-        self.router.add_api_route(
-            "/",
-            self.list_items,
-            methods=["GET"],
-            response_model=self.list_response_schema,
-            status_code=200,
-        )
-        self.router.add_api_route(
-            "/",
-            self.create_bulk_item,
-            methods=["POST"],
-            response_model=self.create_response_schema,
-            status_code=201,
-        )
-        self.router.add_api_route(
-            "/{uid:uuid}",
-            self.retrieve_bulk_item,
-            methods=["GET"],
-            response_model=self.retrieve_response_schema,
-        )
+        super().config_routes(update_route=False, delete_route=False, **kwargs)
 
-    async def create_bulk_item(
+    async def create_item(
         self,
         request: fastapi.Request,
         data: ImagineCreateBulkSchema,
@@ -137,10 +125,12 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
             item = await item.start_processing()
         else:
             background_tasks.add_task(item.start_processing)
-        item.delivery_time = time.time() - start_time
-        return item
 
-    async def retrieve_bulk_item(
+        return ImagineBulkResponseSchema(
+            **item.model_dump(), delivery_time=time.time() - start_time
+        )
+
+    async def retrieve_item(
         self,
         request: fastapi.Request,
         uid: uuid.UUID,
@@ -156,15 +146,17 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
             )
         return item
 
-    async def webhook_bulk(self, request: fastapi.Request, uid: uuid.UUID, data: dict):
-        logging.info(f"Webhook received: {await request.json()}")
+    async def webhook(
+        self,
+        request: fastapi.Request,
+        uid: uuid.UUID,
+        data: dict,
+    ):
+        logging.info(f"Bulk webhook: {data}")
         return {}
-        item: Imagination = await self.get_item(uid, user_id=None)
-        if item.status == "cancelled":
-            return {"message": "Imagination has been cancelled."}
-        await process_imagine_webhook(item, data)
+        item = await self.retrieve_item(request, uid)
+        await process_imagine_bulk_webhook(item, data)
         return {}
-
 
 router = ImaginationRouter().router
 bulk_router = ImaginationBulkRouter().router

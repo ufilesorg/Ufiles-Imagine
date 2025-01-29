@@ -129,6 +129,9 @@ class ImagineBulkSchema(ImagineCreateBulkSchema, TaskMixin, OwnedEntitySchema):
     total_tasks: int = 0
     total_completed: int = 0
     total_failed: int = 0
-    delivery_time: float | None = None
     results: list[ImagineBulkResponse] | None = []
     errors: list[ImagineBulkError] | None = []
+
+
+class ImagineBulkResponseSchema(ImagineBulkSchema):
+    delivery_time: float | None = None
