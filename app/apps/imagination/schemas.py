@@ -3,12 +3,11 @@ import uuid
 from datetime import datetime
 from typing import Any, Generator
 
+from apps.ai.engine import ImaginationEngines
+from apps.ai.schemas import ImaginationStatus
 from fastapi_mongo_base.schemas import OwnedEntitySchema
 from fastapi_mongo_base.tasks import TaskMixin
 from pydantic import BaseModel, field_validator, model_validator
-
-from apps.ai.engine import ImaginationEngines
-from apps.ai.schemas import ImaginationStatus
 
 
 class ImagineCreateSchema(BaseModel):
@@ -79,6 +78,8 @@ class ImagineBulkResponse(BaseModel):
     height: int
     engine: ImaginationEngines
 
+    execution_time: float | None = None
+
 
 class ImagineBulkError(BaseModel):
     engine: ImaginationEngines
@@ -128,5 +129,6 @@ class ImagineBulkSchema(ImagineCreateBulkSchema, TaskMixin, OwnedEntitySchema):
     total_tasks: int = 0
     total_completed: int = 0
     total_failed: int = 0
+    delivery_time: float | None = None
     results: list[ImagineBulkResponse] | None = []
     errors: list[ImagineBulkError] | None = []

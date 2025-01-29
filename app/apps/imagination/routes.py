@@ -1,15 +1,15 @@
+import time
 import logging
 import uuid
 
 import fastapi
+from apps.ai.engine import ImaginationEngines, ImaginationEnginesSchema
+from apps.ai.replicate_schemas import PredictionModelWebhookData
 from fastapi import BackgroundTasks
 from fastapi_mongo_base.core.exceptions import BaseHTTPException
 from fastapi_mongo_base.routes import AbstractBaseRouter
 from fastapi_mongo_base.tasks import TaskStatusEnum
 from usso.fastapi import jwt_access_security
-
-from apps.ai.engine import ImaginationEngines, ImaginationEnginesSchema
-from apps.ai.replicate_schemas import PredictionModelWebhookData
 
 from .models import Imagination, ImaginationBulk
 from .schemas import (
@@ -121,6 +121,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         background_tasks: BackgroundTasks,
         sync: bool = False,
     ):
+        start_time = time.time()
         user_id = await self.get_user_id(request)
         item: ImaginationBulk = await ImaginationBulk.create_item(
             {
@@ -136,6 +137,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
             item = await item.start_processing()
         else:
             background_tasks.add_task(item.start_processing)
+        item.delivery_time = time.time() - start_time
         return item
 
     async def retrieve_bulk_item(

@@ -1,7 +1,6 @@
 import openai
-from openai.types import ImagesResponse as OpenAiImagesResponse
-
 from apps.imagination.schemas import ImagineSchema
+from openai.types import ImagesResponse as OpenAiImagesResponse
 from server.config import Settings
 
 from .engine import BaseEngine, EnginesResponse

@@ -1,7 +1,6 @@
 from typing import Any, Literal
 
 import replicate.prediction
-
 from apps.imagination.schemas import ImagineSchema
 from server.config import Settings
 

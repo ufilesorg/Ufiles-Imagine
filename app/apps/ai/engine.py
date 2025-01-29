@@ -1,9 +1,8 @@
 from enum import Enum
 
 from pydantic import BaseModel, field_validator
-from singleton import Singleton
-
 from server.config import Settings
+from singleton import Singleton
 
 from .schemas import ImaginationStatus
 

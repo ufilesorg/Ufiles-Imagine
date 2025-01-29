@@ -1,12 +1,11 @@
 from enum import Enum
 from typing import Any
 
+from apps.ai.replicate_schemas import PredictionModelWebhookData
+from apps.imagination.schemas import ImaginationStatus, ImagineResponse
 from fastapi_mongo_base.schemas import OwnedEntitySchema
 from fastapi_mongo_base.tasks import TaskMixin
 from pydantic import BaseModel
-
-from apps.ai.replicate_schemas import PredictionModelWebhookData
-from apps.imagination.schemas import ImaginationStatus, ImagineResponse
 
 
 class BackgroundRemovalEngines(str, Enum):

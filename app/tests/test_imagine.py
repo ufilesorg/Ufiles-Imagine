@@ -2,7 +2,6 @@ import logging
 import os
 
 import httpx
-
 from server.config import Settings
 
 Settings.config_logger()

@@ -5,10 +5,9 @@ import uuid
 from io import BytesIO
 
 import ufiles
+from apps.imagination.schemas import ImagineResponse
 from fastapi_mongo_base.utils import aionetwork, basic, imagetools
 from PIL import Image
-
-from apps.imagination.schemas import ImagineResponse
 from server.config import Settings
 
 from .models import BackgroundRemoval

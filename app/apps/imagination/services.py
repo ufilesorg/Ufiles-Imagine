@@ -9,12 +9,6 @@ from io import BytesIO
 import httpx
 import ufiles
 from aiocache import cached
-from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
-from fastapi_mongo_base.utils import basic, imagetools, texttools
-from PIL import Image
-from ufaas import AsyncUFaaS, exceptions
-from ufaas.apps.saas.schemas import UsageCreateSchema
-
 from apps.ai.engine import EnginesResponse
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from apps.imagination.models import Imagination, ImaginationBulk
@@ -25,7 +19,12 @@ from apps.imagination.schemas import (
     ImagineSchema,
     MidjourneyWebhookData,
 )
+from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
+from fastapi_mongo_base.utils import basic, imagetools, texttools
+from PIL import Image
 from server.config import Settings
+from ufaas import AsyncUFaaS, exceptions
+from ufaas.apps.saas.schemas import UsageCreateSchema
 from utils import ai
 
 # Store conditions for active imaginations
@@ -78,7 +77,7 @@ async def upload_image(
         api_key=Settings.UFILES_API_KEY,
     )
     image_bytes = imagetools.convert_image_bytes(image, format="JPEG", quality=90)
-    image_bytes.name = f"{image_name}.jpg"
+    image_bytes.name = f"{engine.value}_{image_name}.jpg"
     return await ufiles_client.upload_bytes(
         image_bytes,
         filename=f"{file_upload_dir}/{image_bytes.name}",

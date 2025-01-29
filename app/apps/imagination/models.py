@@ -1,11 +1,10 @@
 import asyncio
 import logging
-from bson import UUID_SUBTYPE, Binary, ObjectId
 
+from bson import UUID_SUBTYPE, Binary
 from fastapi_mongo_base.models import OwnedEntity
 from fastapi_mongo_base.tasks import TaskStatusEnum
 from fastapi_mongo_base.utils.basic import try_except_wrapper
-
 from server.config import Settings
 
 from .schemas import (
@@ -97,7 +96,9 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
 
         result = await ImaginationBulk.aggregate(
             [
-                {"$match": {"uid": uid, "user_id": user_id}},  # Match the specific ImagineBulkSchema by its ID
+                {
+                    "$match": {"uid": uid, "user_id": user_id}
+                },  # Match the specific ImagineBulkSchema by its ID
                 {
                     "$lookup": {
                         "from": "Imagination",  # The collection name of ImagineSchema
@@ -109,13 +110,29 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
             ]
         ).to_list()
         bulk = ImaginationBulk(**result[0])
-        bulk.results = [
-            ImagineBulkResponse(engine=imagine_dict["engine"], **imagine_result)
-            for imagine_dict in result[0]["child"]
-            if imagine_dict is not None
-            for imagine_result in imagine_dict["results"]
-            if imagine_result is not None
-        ]
+        bulk.results = []
+        for imagine_dict in result[0]["child"]:
+            if imagine_dict is None:
+                continue
+            for imagine_result in imagine_dict.get("results") or []:
+                if imagine_result is None:
+                    continue
+
+                updated_at, created_at = imagine_dict.get(
+                    "updated_at"
+                ), imagine_dict.get("created_at")
+                if updated_at and created_at:
+                    execution_time = (updated_at - created_at).total_seconds()
+                else:
+                    execution_time = None
+
+                bulk.results.append(
+                    ImagineBulkResponse(
+                        **imagine_result,
+                        engine=imagine_dict.get("engine"),
+                        execution_time=execution_time,
+                    )
+                )
 
         return bulk
 
