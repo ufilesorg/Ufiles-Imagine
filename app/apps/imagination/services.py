@@ -178,8 +178,7 @@ async def process_imagine_webhook(
             result_url = [result_url]
         for url in result_url:
             await process_result(imagination, url)
-        await imagination.end_processing()
-
+        
         # Add condition notification with logging
         await release_condition(imagination.uid)
 
@@ -432,7 +431,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
         )
 
     imagination_bulk.task_status = TaskStatusEnum.processing
-    await imagination_bulk.save_report(f"Bulk task was ordered.", emit=False)
+    await imagination_bulk.save_report(f"Bulk task was ordered.")
     task_items: list[Imagination] = [
         await task.get_task_item() for task in imagination_bulk.task_references.tasks
     ]
@@ -441,6 +440,8 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     imagination_bulk = await ImaginationBulk.get_item(
         imagination_bulk.uid, imagination_bulk.user_id
     )
+    imagination_bulk.task_status = TaskStatusEnum.completed
+    await imagination_bulk.save_report(f"Bulk Imagination completed.")
     return imagination_bulk
 
 

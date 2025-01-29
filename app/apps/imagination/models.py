@@ -31,13 +31,6 @@ class Imagination(ImagineSchema, OwnedEntity):
 
         return await imagine_request(self)
 
-    async def end_processing(self):
-        return
-        if self.bulk and self.status.is_done:
-            logging.info(f"end_processing {self.uid} for all imagine {self.bulk}")
-            main_task = await ImaginationBulk.get(self.bulk)
-            await main_task.end_processing(self)
-
     async def retry(self, message: str, max_retries: int = 5):
         self.meta_data = self.meta_data or {}
         retry_count = self.meta_data.get("retry_count", 0)
@@ -159,12 +152,6 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
         from .services import imagine_bulk_process
 
         await imagine_bulk_process(self)
-
-    async def end_processing(self, imagination: Imagination):
-        from .services import imagine_bulk_result
-
-        await imagine_bulk_result(self, imagination)
-        logging.info(f"end_processing {self.uid} for all imagine {self}")
 
     async def completed_tasks(self) -> list[Imagination]:
         return await Imagination.find(
