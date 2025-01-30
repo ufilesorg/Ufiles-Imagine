@@ -55,6 +55,8 @@ async def get_quota(user_id: uuid.UUID) -> Decimal:
 
 @basic.try_except_wrapper
 async def cancel_usage(usage_id: uuid.UUID) -> None:
+    if usage_id is None:
+        return
     async with get_ufaas_client() as ufaas_client:
         await ufaas_client.saas.usages.cancel_item(usage_id)
 
