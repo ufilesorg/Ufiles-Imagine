@@ -9,7 +9,7 @@ from server.config import Settings
 from ufaas import AsyncUFaaS, exceptions
 from ufaas.apps.saas.schemas import UsageCreateSchema, UsageSchema
 
-resource_variant = getattr(Settings, "UFAAS_RESOURCE_VARIANT", "subtitle")
+resource_variant = getattr(Settings, "UFAAS_RESOURCE_VARIANT", "imagine")
 
 
 @asynccontextmanager
