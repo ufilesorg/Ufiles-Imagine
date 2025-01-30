@@ -148,9 +148,7 @@ async def imagine_request(imagination: Imagination, **kwargs):
             )
 
         # Meter cost
-        usage = await finance.meter_cost(
-            imagination.user_id, imagination.engine.price
-        )
+        usage = await finance.meter_cost(imagination.user_id, imagination.engine.price)
         if usage is None:
             logging.error(
                 f"Insufficient balance. {imagination.user_id} {imagination.engine.value}"
