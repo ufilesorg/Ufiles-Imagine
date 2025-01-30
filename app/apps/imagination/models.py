@@ -47,7 +47,7 @@ class Imagination(ImagineSchema, OwnedEntity):
         return -1
 
     async def fail(self, message: str, log_type: str = "error"):
-        from .services import cancel_usage
+        from utils import finance
 
         self.task_status = TaskStatusEnum.error
         self.status = ImaginationStatus.error
@@ -56,7 +56,7 @@ class Imagination(ImagineSchema, OwnedEntity):
             f"Imagine failed, {message}", emit=False, log_type=log_type
         )
         await self.save_and_emit()
-        await cancel_usage(self)
+        await finance.cancel_usage(self.user_id)
 
     @classmethod
     async def get_item(cls, uid, user_id, *args, **kwargs) -> "Imagination":
