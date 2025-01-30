@@ -26,13 +26,16 @@ async def get_ufaas_client() -> AsyncGenerator[AsyncUFaaS, None]:
         pass
 
 
-async def meter_cost(user_id: uuid.UUID, amount: float) -> UsageSchema:
+async def meter_cost(
+    user_id: uuid.UUID, amount: float, meta_data: dict = None
+) -> UsageSchema:
     async with get_ufaas_client() as ufaas_client:
         usage_schema = UsageCreateSchema(
             user_id=user_id,
             asset="coin",
             amount=amount,
             variant=resource_variant,
+            meta_data=meta_data,
         )
         usage = await ufaas_client.saas.usages.create_item(
             usage_schema.model_dump(mode="json"), timeout=30
