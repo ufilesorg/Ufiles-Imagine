@@ -26,5 +26,8 @@ class Settings(config.Settings):
     UFILES_BASE_URL: str = os.getenv("UFILES_URL")
     UFAAS_BASE_URL: str = os.getenv("UFAAS_BASE_URL")
     USSO_BASE_URL: str = os.getenv("USSO_URL")
+    UFAAS_RESOURCE_VARIANT: str = os.getenv(
+        "UFAAS_RESOURCE_VARIANT", default="imagine"
+    )
 
     base_image_price: int = 1
