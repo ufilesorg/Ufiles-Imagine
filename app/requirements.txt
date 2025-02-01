@@ -26,3 +26,5 @@ usso[fastapi]
 
 openai
 replicate
+fal-client
+
