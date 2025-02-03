@@ -21,7 +21,7 @@ from .schemas import (
     ImagineSchema,
     MidjourneyWebhookData,
 )
-from .services import process_imagine_webhook
+from .services import process_imagine_webhook, register_cost
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
@@ -51,7 +51,9 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         sync: bool = False,
     ):
         item: Imagination = await super().create_item(request, data.model_dump())
+
         await finance.check_quota(item.user_id, item.total_price)
+        await register_cost(item)
 
         item.task_status = "init"
         if sync:

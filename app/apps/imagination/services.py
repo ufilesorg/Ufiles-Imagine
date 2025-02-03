@@ -138,6 +138,19 @@ async def create_prompt(imagination: Imagination | ImaginationBulk):
     return prompt
 
 
+async def register_cost(imagination: Imagination):
+    usage = await finance.meter_cost(imagination.user_id, imagination.engine.price)
+    if usage is None:
+        logging.error(
+            f"Insufficient balance. {imagination.user_id} {imagination.engine.value}"
+        )
+        await imagination.fail("Insufficient balance.")
+        return
+
+    imagination.usage_id = usage.uid
+    return imagination
+
+
 async def imagine_request(imagination: Imagination, **kwargs):
     try:
         # Get Engine class and validate it
@@ -146,15 +159,6 @@ async def imagine_request(imagination: Imagination, **kwargs):
             raise NotImplementedError(
                 "The supported engines are Midjourney, Replicate and Dalle."
             )
-
-        # Meter cost
-        usage = await finance.meter_cost(imagination.user_id, imagination.engine.price)
-        if usage is None:
-            logging.error(
-                f"Insufficient balance. {imagination.user_id} {imagination.engine.value}"
-            )
-            await imagination.fail("Insufficient balance.")
-            return
 
         # Create prompt using context attributes (ratio, style ...)
         imagination.prompt = await create_prompt(imagination)
@@ -260,6 +264,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
                 webhook_url=imagination_bulk.webhook_url,
             ).model_dump()
         )
+        await register_cost(imagine)
         imagination_bulk.task_references.tasks.append(
             TaskReference(task_id=imagine.uid, task_type="Imagination")
         )
