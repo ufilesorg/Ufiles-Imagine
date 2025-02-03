@@ -160,6 +160,9 @@ async def imagine_request(imagination: Imagination, **kwargs):
                 "The supported engines are Midjourney, Replicate and Dalle."
             )
 
+        if imagination.usage_id is None:
+            await register_cost(imagination)
+        
         # Create prompt using context attributes (ratio, style ...)
         imagination.prompt = await create_prompt(imagination)
 
@@ -264,7 +267,6 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
                 webhook_url=imagination_bulk.webhook_url,
             ).model_dump()
         )
-        await register_cost(imagine)
         imagination_bulk.task_references.tasks.append(
             TaskReference(task_id=imagine.uid, task_type="Imagination")
         )
