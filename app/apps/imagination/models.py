@@ -78,13 +78,13 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
     @classmethod
     async def get_item(cls, uid, user_id, *args, **kwargs) -> "ImaginationBulk":
         uid = Binary.from_uuid(uid, UUID_SUBTYPE)
-        user_id = Binary.from_uuid(user_id, UUID_SUBTYPE)
-        # oid = ObjectId("6753f48dfd1306dbcb91604a")
+        if user_id:
+            user_id = Binary.from_uuid(user_id, UUID_SUBTYPE)
 
         result = await ImaginationBulk.aggregate(
             [
                 {
-                    "$match": {"uid": uid, "user_id": user_id}
+                    "$match": {"uid": uid} | ({"user_id": user_id} if user_id else {})
                 },  # Match the specific ImagineBulkSchema by its ID
                 {
                     "$lookup": {

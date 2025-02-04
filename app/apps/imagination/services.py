@@ -262,7 +262,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
                 delineation=imagination_bulk.delineation,
                 context=imagination_bulk.context,
                 aspect_ratio=aspect_ratio,
-                webhook_url=imagination_bulk.webhook_url,
+                webhook_url=imagination_bulk.item_webhook_url,
             )
         )
         imagination_bulk.task_references.tasks.append(
@@ -282,3 +282,14 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     imagination_bulk.task_status = TaskStatusEnum.completed
     await imagination_bulk.save_report(f"Bulk Imagination completed.")
     return imagination_bulk
+
+
+async def process_imagine_bulk_webhook(imagination_bulk: ImaginationBulk, data: dict):
+    status = data.get("status")
+    report = data.get("task_report")
+    engine = data.get("engine")
+    aspect_ratio = data.get("aspect_ratio")
+
+    await imagination_bulk.save_report(
+        f"{engine} {aspect_ratio} task updated: {status} -> {report}"
+    )

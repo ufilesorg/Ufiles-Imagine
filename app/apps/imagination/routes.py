@@ -21,7 +21,11 @@ from .schemas import (
     ImagineSchema,
     MidjourneyWebhookData,
 )
-from .services import process_imagine_webhook, register_cost
+from .services import (
+    process_imagine_bulk_webhook,
+    process_imagine_webhook,
+    register_cost,
+)
 
 
 class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
@@ -137,7 +141,6 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         self,
         request: fastapi.Request,
         uid: uuid.UUID,
-        background_tasks: BackgroundTasks,
     ):
         user_id = await self.get_user_id(request)
         item = await ImaginationBulk.get_item(uid, user_id=user_id)
@@ -156,8 +159,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         data: dict,
     ):
         logging.info(f"Bulk webhook: {data}")
-        return {}
-        item = await self.retrieve_item(request, uid)
+        item = await self.model.get_item(uid, user_id=None)
         await process_imagine_bulk_webhook(item, data)
         return {}
 
