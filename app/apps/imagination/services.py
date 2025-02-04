@@ -85,6 +85,7 @@ async def process_imagine_webhook(
         else 100
     )
     imagination.task_status = data.status.task_status
+    imagination.status = data.status
     # logging.info(
     #     f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_conditions)=} {type(data).__name__=}"
     # )
