@@ -38,6 +38,7 @@ class ImaginationStatus(str, Enum):
     @classmethod
     def from_replicate(cls, status: str):
         return {
+            "init": ImaginationStatus.init,
             "processing": ImaginationStatus.processing,
             "succeeded": ImaginationStatus.completed,
             "completed": ImaginationStatus.completed,

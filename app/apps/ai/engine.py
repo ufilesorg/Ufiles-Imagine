@@ -70,11 +70,15 @@ class BaseEngine(metaclass=Singleton):
     # Get current request service(Convert service status to ImaginationStatus)
     def _status(self, status: str) -> ImaginationStatus:
         return {
+            "draft": ImaginationStatus.init,
+            "init": ImaginationStatus.init,
             "initialized": ImaginationStatus.init,
             "queue": ImaginationStatus.queue,
+            "pending": ImaginationStatus.queue,
             "waiting": ImaginationStatus.waiting,
             "running": ImaginationStatus.processing,
             "completed": ImaginationStatus.completed,
+            "succeeded": ImaginationStatus.completed,
             "error": ImaginationStatus.error,
         }.get(status, ImaginationStatus.error)
 

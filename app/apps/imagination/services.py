@@ -79,24 +79,31 @@ async def process_imagine_webhook(
         # Add condition notification with logging
         await conditions.Conditions().release_condition(imagination.uid)
 
-    imagination.task_progress = (
+    update_progress = (
         getattr(data, "percentage", data.status.progress)
         if not data.status.is_done
         else 100
     )
-    imagination.task_status = data.status.task_status
-    imagination.status = data.status
-    # logging.info(
-    #     f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_conditions)=} {type(data).__name__=}"
-    # )
 
-    report = (
-        f"{imagination.engine.value} completed."
-        if data.status == "completed"
-        else f"{imagination.engine.value} update. {imagination.status}"
-    )
+    if update_progress >= imagination.task_progress:
+        imagination.task_progress = update_progress
+        imagination.task_status = data.status.task_status
+        imagination.status = data.status
+        # logging.info(
+        #     f"{imagination.engine.value=} {imagination.task_progress=} {imagination.task_status=} {len(_conditions)=} {type(data).__name__=}"
+        # )
 
-    await imagination.save_report(report)
+        report = (
+            f"{imagination.engine.value} completed."
+            if data.status == "completed"
+            else f"{imagination.engine.value} update. {imagination.status}"
+        )
+
+        await imagination.save_report(report)
+    else:
+        logging.info(
+            f"{imagination.engine.value} {imagination.task_progress=} {update_progress=}"
+        )
 
     if data.status == "completed" and imagination.task_status != "completed":
         logging.info(f"task completed")

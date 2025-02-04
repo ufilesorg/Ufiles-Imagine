@@ -72,7 +72,7 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
         uid: uuid.UUID,
         data: dict,
     ):
-        item: Imagination = await self.get_item(uid, user_id=None)
+        item: Imagination = await self.get_item(uid, user_id=None, ignore_user_id=True)
         if item.engine.core == "midjourney":
             data = MidjourneyWebhookData(**data)
         elif item.engine.core == "replicate":
@@ -158,8 +158,7 @@ class ImaginationBulkRouter(AbstractBaseRouter[ImaginationBulk, ImagineBulkSchem
         uid: uuid.UUID,
         data: dict,
     ):
-        logging.info(f"Bulk webhook: {data}")
-        item = await self.model.get_item(uid, user_id=None)
+        item = await self.model.get_item(uid, user_id=None, ignore_user_id=True)
         await process_imagine_bulk_webhook(item, data)
         return {}
 

@@ -77,6 +77,9 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
 
     @classmethod
     async def get_item(cls, uid, user_id, *args, **kwargs) -> "ImaginationBulk":
+        if user_id == None and kwargs.get("ignore_user_id") != True:
+            raise ValueError("user_id is required")
+
         uid = Binary.from_uuid(uid, UUID_SUBTYPE)
         if user_id:
             user_id = Binary.from_uuid(user_id, UUID_SUBTYPE)
@@ -96,6 +99,10 @@ class ImaginationBulk(ImagineBulkSchema, OwnedEntity):
                 },
             ]
         ).to_list()
+
+        if not result:
+            return None
+
         bulk = ImaginationBulk(**result[0])
         bulk.results = []
         for imagine_dict in result[0]["child"]:
