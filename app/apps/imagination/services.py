@@ -11,7 +11,6 @@ from apps.imagination.schemas import (
     ImaginationEngines,
     ImaginationStatus,
     ImagineResponse,
-    ImagineSchema,
     MidjourneyWebhookData,
 )
 from fastapi_mongo_base.tasks import TaskReference, TaskReferenceList, TaskStatusEnum
@@ -22,7 +21,7 @@ from utils import ai, finance, media
 
 @basic.try_except_wrapper
 async def process_result(imagination: Imagination, generated_url: str):
-    logging.info(f"process_result {generated_url=}")
+    # logging.info(f"process_result {generated_url=}")
     # Download the image
     async with httpx.AsyncClient() as client:
         response = await client.get(generated_url)
@@ -162,7 +161,7 @@ async def imagine_request(imagination: Imagination, **kwargs):
 
         if imagination.usage_id is None:
             await register_cost(imagination)
-        
+
         # Create prompt using context attributes (ratio, style ...)
         imagination.prompt = await create_prompt(imagination)
 
@@ -255,7 +254,7 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
     imagination_bulk.prompt = await create_prompt(imagination_bulk)
     for aspect_ratio, engine in imagination_bulk.get_combinations():
         imagine = await Imagination.create_item(
-            ImagineSchema(
+            dict(
                 user_id=imagination_bulk.user_id,
                 bulk=imagination_bulk.uid,
                 engine=engine,
@@ -263,9 +262,8 @@ async def imagine_bulk_request(imagination_bulk: ImaginationBulk):
                 delineation=imagination_bulk.delineation,
                 context=imagination_bulk.context,
                 aspect_ratio=aspect_ratio,
-                mode="imagine",
                 webhook_url=imagination_bulk.webhook_url,
-            ).model_dump()
+            )
         )
         imagination_bulk.task_references.tasks.append(
             TaskReference(task_id=imagine.uid, task_type="Imagination")
