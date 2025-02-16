@@ -96,6 +96,7 @@ class ImaginationEngines(str, Enum):
     ideogram = "ideogram"
     ideogram_turbo = "ideogram_turbo"
     photon = "photon"
+    imagen = "imagen"
     flux_1_1 = "flux_1.1"
     flux_schnell = "flux_schnell"
     photon_flash = "photon_flash"
@@ -115,6 +116,7 @@ class ImaginationEngines(str, Enum):
             ImaginationEngines.ideogram,
             ImaginationEngines.ideogram_turbo,
             ImaginationEngines.photon,
+            ImaginationEngines.imagen,
         ]
         return [
             engine
@@ -139,6 +141,7 @@ class ImaginationEngines(str, Enum):
             Photon,
             PhotonFlash,
             StableDiffusion3,
+            Imagen,
         )
 
         return {
@@ -152,6 +155,7 @@ class ImaginationEngines(str, Enum):
             # ImaginationEngines.flux: Flux11(),
             ImaginationEngines.photon: Photon(),
             ImaginationEngines.photon_flash: PhotonFlash(),
+            ImaginationEngines.imagen: Imagen(),
         }[self]
 
     @property

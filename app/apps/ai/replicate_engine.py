@@ -220,6 +220,28 @@ class Flux11(Replicate):
         return Settings.base_image_price * 12
 
 
+class Imagen(Replicate):
+    application_name: Literal["google/imagen-3"] = "google/imagen-3"
+
+    @property
+    def supported_aspect_ratios(self):
+        return {
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",  
+        }
+
+    @property
+    def thumbnail_url(self):
+        return "https://media.pixiee.io/v1/f/33909110-db3e-4e3c-a42f-0650fd6e3cfe/imagen.png?width=100"
+
+    @property
+    def price(self):
+        return Settings.base_image_price * 12
+
+
 class Photon(Replicate):
     application_name: Literal["luma/photon"] = "luma/photon"
 

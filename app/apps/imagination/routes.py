@@ -3,6 +3,8 @@ import time
 import uuid
 
 import fastapi
+from datetime import datetime
+from fastapi import Request
 from apps.ai.engine import ImaginationEngines, ImaginationEnginesSchema
 from apps.ai.replicate_schemas import PredictionModelWebhookData
 from fastapi import BackgroundTasks
@@ -20,6 +22,7 @@ from .schemas import (
     ImagineCreateSchema,
     ImagineSchema,
     MidjourneyWebhookData,
+    ImaginationStatus,
 )
 from .services import (
     process_imagine_bulk_webhook,
@@ -46,6 +49,21 @@ class ImaginationRouter(AbstractBaseRouter[Imagination, ImagineSchema]):
             methods=["POST"],
             status_code=200,
         )
+        self.router.add_api_route(
+            "/imagination/statistics",
+            self.statistics,
+            methods=["GET"],
+            status_code=200,
+        )
+
+    async def statistics(
+        self,
+        request: Request,
+        created_at_from: datetime | None = None,
+        created_at_to: datetime | None = None,
+        status: ImaginationStatus | None = None,
+    ):
+        return await super().statistics(request)
 
     async def create_item(
         self,
