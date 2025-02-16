@@ -1,7 +1,7 @@
-import httpx
-from fastapi_mongo_base.utils import basic
 import os
 
+import httpx
+from fastapi_mongo_base.utils import basic
 from fastapi_mongo_base.utils.basic import retry_execution, try_except_wrapper
 from usso.session import AsyncUssoSession
 

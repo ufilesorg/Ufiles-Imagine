@@ -1,13 +1,12 @@
 import logging
 import time
 import uuid
+from datetime import datetime
 
 import fastapi
-from datetime import datetime
-from fastapi import Request
 from apps.ai.engine import ImaginationEngines, ImaginationEnginesSchema
 from apps.ai.replicate_schemas import PredictionModelWebhookData
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, Request
 from fastapi_mongo_base.core.exceptions import BaseHTTPException
 from fastapi_mongo_base.routes import AbstractBaseRouter
 from fastapi_mongo_base.tasks import TaskStatusEnum
@@ -16,13 +15,13 @@ from utils import finance
 
 from .models import Imagination, ImaginationBulk
 from .schemas import (
+    ImaginationStatus,
     ImagineBulkResponseSchema,
     ImagineBulkSchema,
     ImagineCreateBulkSchema,
     ImagineCreateSchema,
     ImagineSchema,
     MidjourneyWebhookData,
-    ImaginationStatus,
 )
 from .services import (
     process_imagine_bulk_webhook,
