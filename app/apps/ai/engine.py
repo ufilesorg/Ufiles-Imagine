@@ -92,14 +92,14 @@ class BaseEngine(metaclass=Singleton):
 
 
 class ImaginationEngines(str, Enum):
-    flux_1_1 = "flux_1.1"
     flux_schnell = "flux_schnell"
+    flux_1_1 = "flux_1.1"
     imagen = "imagen"
-    photon = "photon"
     photon_flash = "photon_flash"
+    photon = "photon"
     dalle = "dalle"
-    ideogram = "ideogram"
     ideogram_turbo = "ideogram_turbo"
+    ideogram = "ideogram"
     midjourney = "midjourney"
     stability = "stability"
     # flux = "flux"
