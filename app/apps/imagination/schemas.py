@@ -11,7 +11,7 @@ from pydantic import BaseModel, field_validator, model_validator
 
 
 class ImagineCreateSchema(BaseModel):
-    engine: ImaginationEngines = ImaginationEngines.midjourney
+    engine: ImaginationEngines = ImaginationEngines.flux_schnell
     aspect_ratio: str | None = "1:1"
 
     delineation: str | None = None
