@@ -220,6 +220,34 @@ class Flux11(Replicate):
         return Settings.base_image_price * 12
 
 
+class FluxPro(Replicate):
+    application_name: Literal["black-forest-labs/flux-pro"] = (
+        "black-forest-labs/flux-pro"
+    )
+
+    @property
+    def supported_aspect_ratios(self):
+        return {
+            "1:1",
+            "16:9",
+            "3:2",
+            "2:3",
+            "4:5",
+            "5:4",
+            "3:4",
+            "4:3",
+            "9:16",
+        }
+
+    @property
+    def thumbnail_url(self):
+        return "https://media.pixiee.io/v1/f/cf21c500-6e84-4915-a5d1-19b8f325a382/flux-icon.png?width=100"
+
+    @property
+    def price(self):
+        return Settings.base_image_price * 12
+
+
 class Imagen(Replicate):
     application_name: Literal["google/imagen-3"] = "google/imagen-3"
 

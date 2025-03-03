@@ -15,7 +15,9 @@ async def answer_with_ai(key, **kwargs) -> dict:
         usso_refresh_url=os.getenv("USSO_REFRESH_URL"),
         api_key=os.getenv("UFILES_API_KEY"),
     ) as session:
-        response = await session.post(f'{os.getenv("PROMPTLY_URL")}/{key}', json=kwargs)
+        response = await session.post(
+            f'{os.getenv("PROMPTLY_URL")}/{key}', json=kwargs, timeout=300
+        )
         response.raise_for_status()
         return response.json()
 
@@ -42,14 +44,16 @@ class PromptlyClient(httpx.AsyncClient):
     @basic.try_except_wrapper
     @basic.retry_execution(attempts=3, delay=1)
     async def ai_image(self, image_url: str, key: str, data: dict = {}) -> dict:
-        r = await self.post(f"/image/{key}", json={**data, "image_url": image_url})
+        r = await self.post(
+            f"/image/{key}", json={**data, "image_url": image_url}, timeout=300
+        )
         r.raise_for_status()
         return r.json()
 
     @basic.try_except_wrapper
     @basic.retry_execution(attempts=3, delay=1)
     async def ai(self, key: str, data: dict = {}) -> dict:
-        r = await self.post(f"/{key}", json=data)
+        r = await self.post(f"/{key}", json=data, timeout=300)
         r.raise_for_status()
         return r.json()
 

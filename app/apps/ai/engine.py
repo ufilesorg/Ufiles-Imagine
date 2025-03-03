@@ -94,6 +94,7 @@ class BaseEngine(metaclass=Singleton):
 class ImaginationEngines(str, Enum):
     flux_schnell = "flux_schnell"
     flux_1_1 = "flux_1.1"
+    flux_pro = "flux_pro"
     imagen = "imagen"
     photon_flash = "photon_flash"
     photon = "photon"
@@ -113,6 +114,7 @@ class ImaginationEngines(str, Enum):
             ImaginationEngines.midjourney,
             ImaginationEngines.dalle,
             ImaginationEngines.flux_1_1,
+            ImaginationEngines.flux_pro,
             ImaginationEngines.ideogram,
             ImaginationEngines.ideogram_turbo,
             ImaginationEngines.photon,
@@ -135,6 +137,7 @@ class ImaginationEngines(str, Enum):
         from .midjourney import Midjourney
         from .replicate_engine import (
             Flux11,
+            FluxPro,
             FluxSchnell,
             Ideogram,
             IdeogramTurbo,
@@ -150,6 +153,7 @@ class ImaginationEngines(str, Enum):
             ImaginationEngines.ideogram: Ideogram(),
             ImaginationEngines.ideogram_turbo: IdeogramTurbo(),
             ImaginationEngines.flux_schnell: FluxSchnell(),
+            ImaginationEngines.flux_pro: FluxPro(),
             ImaginationEngines.stability: StableDiffusion3(),
             ImaginationEngines.flux_1_1: Flux11(),
             # ImaginationEngines.flux: Flux11(),
